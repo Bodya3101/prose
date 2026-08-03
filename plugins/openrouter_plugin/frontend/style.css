@@ -1,0 +1,93 @@
+/* --- СТИЛИ ПЛАГИНА OPENROUTER --- */
+
+/* Точная копия твоего окна предупреждения */
+.or-warning-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(10px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+}
+
+.or-warning-modal {
+    background: #2D2D2D;
+    border-radius: 16px;
+    width: 100%;
+    max-width: 450px;
+    padding: 30px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+}
+
+.or-warning-header {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    font-size: 20px;
+    font-weight: bold;
+    color: var(--text-main);
+}
+
+.or-warning-icon {
+    width: 48px;
+    height: 48px;
+}
+
+.or-warning-text {
+    background: #212121;
+    border-radius: 8px;
+    padding: 20px;
+    font-size: 14px;
+    color: #D9D9D9;
+    line-height: 1.6;
+    font-family: inherit;
+}
+
+.or-warning-buttons {
+    display: flex;
+    gap: 15px;
+}
+
+.or-btn-danger {
+    flex: 1;
+    background: #4A4A4A;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+.or-btn-danger:hover:not(:disabled) { background: #5A5A5A; }
+.or-btn-danger:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.or-btn-cancel {
+    flex: 1;
+    background: #555555;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+.or-btn-cancel:hover { background: #666666; }
+
+/* Прогресс-бар генерации */
+.or-progress-bar {
+    width: 100%; height: 6px; background: #161616; border-radius: 3px; overflow: hidden; margin-top: 5px;
+}
+.or-progress-fill {
+    height: 100%; background: #426C47; transition: width 0.3s ease;
+}
+@keyframes pulse {
+    0% { opacity: 0.5; }
+    100% { opacity: 1; }
+}

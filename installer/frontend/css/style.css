@@ -1,0 +1,288 @@
+:root {
+    --border-color: #3C3C3C;
+    --bg-light: #212121;
+    --bg-dark: #191919;
+    --accent-pink: #CB3153;
+    --text-color: #D9D9D9;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+
+body {
+    background: transparent;
+    color: var(--text-color);
+    font-family: 'JetBrains Mono', 'Segoe UI', monospace;
+    overflow: hidden;
+    height: 100vh;
+}
+
+[v-cloak] { display: none; }
+
+.installer-window {
+    width: 100%; height: 100%;
+    display: flex; flex-direction: column;
+    position: relative;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    
+    /* ЧЕРНЫЙ ВЫШЕ, СЕРЫЙ СНИЗУ */
+    background: linear-gradient(180deg, #000000 0%, #333333 100%);
+}
+
+.pywebview-drag-region { -webkit-app-region: drag; }
+.no-drag { -webkit-app-region: no-drag; }
+
+.top-right-controls {
+    position: absolute;
+    top: 15px; right: 15px;
+    display: flex; gap: 8px;
+    z-index: 100;
+}
+.control-btn {
+    background: transparent;
+    border: none;
+    color: #888;
+    cursor: pointer;
+    width: 28px; height: 28px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 6px;
+    transition: color 0.2s, background 0.2s;
+}
+.control-btn:hover { color: var(--text-color); background: rgba(255,255,255,0.1); }
+.close-btn { font-size: 16px; }
+.close-btn:hover { background: #D34646; color: #fff; }
+
+.main-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 30px;
+}
+
+/* ГЛАВНАЯ ПЛАШКА (#212121) */
+.step-card {
+    background: var(--bg-light);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    padding: 30px;
+    width: 100%;
+    max-width: 480px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
+
+/* Иконки внутри шага 1 */
+.hero-icons-row {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 5px;
+}
+.hero-icon-btn {
+    width: 56px; height: 56px;
+    background-color: transparent;
+    background-image: url('../assets/icons/icon_base.png'); 
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    border: none;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: transform 0.15s;
+}
+.hero-icon-btn:hover { transform: translateY(-2px); }
+.hero-img { width: 50%; height: 50%; object-fit: contain; }
+.main-logo { width: 68px; height: 68px; }
+
+.hero-title {
+    font-size: 36px;
+    font-weight: bold;
+    color: var(--accent-pink);
+    font-style: italic;
+    margin-bottom: 0px;
+    letter-spacing: 2px;
+}
+
+.hero-version-badge {
+    background: var(--bg-dark);
+    border: 1px solid var(--border-color);
+    color: #A0A0A0;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    margin-bottom: 10px;
+    font-weight: bold;
+}
+
+/* Текстовый бокс ВНУТРИ плашки (тёмный #191919) */
+.message-box {
+    background: var(--bg-dark);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 20px 25px;
+    text-align: center;
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--text-color);
+    min-height: 80px;
+    display: flex; align-items: center; justify-content: center;
+    width: 100%;
+}
+
+.nav-footer { display: flex; width: 100%; margin-top: 5px; }
+.nav-footer.right-only { justify-content: flex-end; }
+.nav-footer.split { justify-content: space-between; }
+
+.arrow-btn {
+    background: var(--bg-dark);
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    width: 40px; height: 40px;
+    border-radius: 10px;
+    font-size: 16px; font-weight: bold;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+}
+.arrow-btn:hover:not(:disabled) { background: #2A2A2A; border-color: #555; }
+.arrow-btn:disabled { opacity: 0.2; cursor: not-allowed; }
+
+/* Зона пути установки (Она уже и так внутри Светлой плашки) */
+.path-selection-area { width: 100%; display: flex; flex-direction: column; gap: 15px; }
+.section-label { font-size: 14px; color: var(--text-color); }
+
+.path-input-group {
+    display: flex; align-items: center;
+    background: var(--bg-dark);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 10px 14px;
+    gap: 10px;
+    cursor: text;
+    transition: border-color 0.2s;
+}
+.path-input-group:hover { border-color: #555; }
+.folder-icon { cursor: pointer; transition: stroke 0.2s; }
+.folder-icon:hover { stroke: var(--accent-pink); }
+.path-input {
+    flex: 1; background: transparent; border: none;
+    color: var(--text-color); font-size: 13px; outline: none; font-family: inherit;
+}
+
+.checkbox-group { display: flex; flex-direction: column; gap: 10px; margin-bottom: 5px; }
+.custom-checkbox {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 13px; color: var(--text-color); cursor: pointer;
+}
+.custom-checkbox input { display: none; }
+
+/* НАСТОЯЩАЯ ГАЛОЧКА (CSS TRICK) */
+.checkbox-box {
+    width: 16px; height: 16px;
+    border: 1px solid var(--border-color); border-radius: 4px;
+    background: var(--bg-dark); transition: 0.2s;
+    position: relative;
+}
+.custom-checkbox input:checked + .checkbox-box {
+    background: var(--accent-pink); border-color: var(--accent-pink);
+}
+.custom-checkbox input:checked + .checkbox-box::after {
+    content: '';
+    position: absolute;
+    left: 4px; top: 1px;
+    width: 4px; height: 8px;
+    border: solid white;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+}
+
+.install-btn-wrapper { display: flex; justify-content: center; }
+.install-btn {
+    background: var(--bg-dark);
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    padding: 10px 24px;
+    border-radius: 8px;
+    font-weight: bold; font-size: 14px;
+    cursor: pointer; transition: 0.2s;
+}
+.install-btn-wrapper { display: flex; justify-content: center; }
+.install-btn {
+    background: var(--bg-dark);
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    padding: 10px 24px;
+    border-radius: 8px;
+    font-weight: bold; font-size: 14px;
+    cursor: pointer; transition: 0.2s;
+}
+.install-btn:hover { background: var(--bg-light); border-color: #555; }
+
+/* Зона прогресса */
+.progress-area {
+    background: var(--bg-dark);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 25px; width: 100%;
+    display: flex; flex-direction: column; align-items: center; gap: 15px;
+}
+.progress-percentage { font-size: 26px; font-weight: bold; color: var(--accent-pink); }
+.progress-bar-track {
+    width: 100%; height: 18px;
+    background: #111; border-radius: 9px;
+    overflow: hidden; border: 1px solid var(--border-color);
+}
+.progress-bar-fill {
+    height: 100%; background: var(--accent-pink); transition: width 0.2s ease;
+}
+.progress-status-file { font-size: 11px; color: #777; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.finish-btn-wrapper { display: flex; justify-content: center; margin-top: 10px; width: 100%; }
+.finish-btn {
+    background: var(--bg-dark); border: 1px solid var(--border-color);
+    color: var(--text-color); padding: 14px 30px; border-radius: 10px;
+    font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.2s;
+}
+.finish-btn:hover { background: var(--bg-light); border-color: #555; }
+
+/* Плавная Slide-Fade + Blur анимация шагов */
+.slide-fade-enter-active, 
+.slide-fade-leave-active {
+    transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+}
+.slide-fade-enter-from {
+    opacity: 0;
+    transform: translateX(25px);
+    filter: blur(4px);
+}
+.slide-fade-leave-to {
+    opacity: 0;
+    transform: translateX(-25px);
+    filter: blur(4px);
+}
+
+[data-tooltip] { position: relative; }
+[data-tooltip]:hover::after {
+    content: attr(data-tooltip);
+    position: absolute; top: 100%; right: 0; margin-top: 5px;
+    background: var(--bg-dark); color: var(--text-color); border: 1px solid var(--border-color);
+    padding: 4px 8px; border-radius: 4px; font-size: 11px;
+    white-space: nowrap; z-index: 1000;
+}
+
+.modal-overlay {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.85); display: flex; align-items: center; justify-content: center; z-index: 9999;
+}
+.modal-card {
+    background: var(--bg-light); border: 1px solid var(--border-color); border-radius: 16px;
+    padding: 20px; width: 400px; display: flex; flex-direction: column; gap: 15px;
+}
+.modal-header { display: flex; justify-content: space-between; align-items: center; }
+.cm-red-dot { width: 14px; height: 14px; background: var(--accent-pink); border-radius: 50%; cursor: pointer; }
+.cp-default-btn { background: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-color); padding: 8px 16px; border-radius: 8px; cursor: pointer; }

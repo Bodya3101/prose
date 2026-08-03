@@ -1,0 +1,7 @@
+{
+    "id": "openrouter_plugin",
+    "name": "OpenRouter Generator",
+    "version": "1.0",
+    "description": "Автоматическая генерация ответов датасета через OpenRouter API",
+    "has_frontend": true
+}

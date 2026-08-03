@@ -1,0 +1,7 @@
+{
+    "id": "chinese_translation_plugin",
+    "name": "Chinese Language Pack",
+    "version": "1.0",
+    "description": "Официальный языковой пакет профессионального китайского перевода (ZH)",
+    "has_frontend": false
+}

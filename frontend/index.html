@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dataset Editor</title>
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval' https://unpkg.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+    <link rel="icon" href="data:;base64,iVBORw0KGgo=">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="theme-accent">
+    
+    <div id="app" v-cloak class="view-container">
+        
+        <!-- ВЕРХНИЙ БАР С ФОЛЛБЭКОМ НА ТЕКСТ PROSE -->
+        <header class="topbar">
+            <div class="logo" style="display: flex; align-items: center; height: 100%;">
+                <img src="assets/images/logo_header.png" 
+                     alt="Prose" 
+                     style="max-height: 28px; width: auto; object-fit: contain;" 
+                     onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                
+                <!-- Отобразится автоматически, если файла logo_header.png еще нет -->
+                <span style="display: none; font-weight: bold; font-size: 20px; color: var(--text-main); font-style: italic; letter-spacing: 1px;">Prose</span>
+            </div>
+            
+            <div class="topbar-actions">
+                <button class="topbar-icon" @click="openAbout" :data-tooltip="store.t('tooltip_about', 'О программе')">
+                    <img src="assets/icons/about.svg">
+                </button>
+                <button class="topbar-icon" @click="openPlugins" :data-tooltip="store.t('tooltip_plugins', 'Плагины')">
+                    <img src="assets/icons/plugin.svg">
+                </button>
+                <button class="topbar-icon" @click="openSettings" :data-tooltip="store.t('tooltip_settings', 'Настройки')">
+                    <img src="assets/icons/settings.svg">
+                </button>
+            </div>
+        </header>
+
+        <!-- ГЛАВНАЯ ПЛАШКА -->
+        <div class="main-panel">
+            <transition name="fade" mode="out-in">
+                <home v-if="store.currentView === 'home'" key="home"></home>
+                <create-project v-else-if="store.currentView === 'create_project'" key="create"></create-project>
+                <editor v-else-if="store.currentView === 'editor'" key="editor"></editor>
+                <settings-view v-else-if="store.currentView === 'settings'" key="settings"></settings-view>
+                <about-view v-else-if="store.currentView === 'about'" key="about"></about-view>
+                <plugins-view v-else-if="store.currentView === 'plugins'" key="plugins"></plugins-view>
+            </transition>
+        </div>
+
+        <!-- 👇 ГЛОБАЛЬНОЕ КАСТОМНОЕ МОДАЛЬНОЕ ОКНО (Никаких дефолтных системных окон!) 👇 -->
+        <div v-if="store.dialog" class="or-warning-overlay" style="z-index: 10000;" @click.self="store.closeDialog(false)">
+            <div class="custom-dialog-modal">
+                <div class="cm-header">
+                    {{ store.dialog.title }}
+                    <div class="cm-red-dot" @click="store.closeDialog(false)"></div>
+                </div>
+                <div class="custom-dialog-body">
+                    {{ store.dialog.message }}
+                </div>
+                <div class="custom-dialog-footer">
+                    <button v-if="store.dialog.type === 'confirm'" class="cp-default-btn" @click="store.closeDialog(false)" style="padding: 8px 16px;">
+                        Отмена
+                    </button>
+                    <button class="btn-primary" @click="store.closeDialog(true)" style="padding: 8px 20px;">
+                        ОК
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script type="module" src="js/script.js"></script>
+</body>
+</html>

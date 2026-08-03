@@ -1,0 +1,33 @@
+# Python & Bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Виртуальное окружение
+.venv/
+venv/
+env/
+ENV/
+
+# Временные папки сборки PyInstaller
+build/
+dist/
+*.spec
+
+# Пользовательские тестовые данные и конфиги (Zero Trust)
+datasets/*.jsonl
+!datasets/projects_meta.json
+config/settings.json
+
+# Временные архивы и плашки
+*.zip
+*.tar.gz
+*.rar
+
+# Системный мусор ОС и IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+господи пожалйукста оно не сломает мне всё.zip
