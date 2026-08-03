@@ -1,102 +1,134 @@
 import os
 import sys
-import shutil
-import zipfile
+import webview
+import logging
+import webbrowser
 import subprocess
+import ctypes
+from typing import Dict, Any
 
-def run_cmd(cmd):
-    res = subprocess.run(cmd, shell=True)
-    if res.returncode != 0:
-        print(f"Build error on: {cmd}")
-        sys.exit(1)
+from requirements_check import SystemRequirementsChecker
+from installer_api import InstallerEngine
 
-def cleanup_pycache(root_dir):
-    """Автоматически вычищает кэши Питона перед сборкой"""
-    for root, dirs, files in os.walk(root_dir):
-        for d in list(dirs):
-            if d == '__pycache__':
-                full_path = os.path.join(root, d)
-                shutil.rmtree(full_path, ignore_errors=True)
-        for f in files:
-            if f.endswith('.pyc') or f.endswith('.pyo'):
-                full_path = os.path.join(root, f)
-                try:
-                    os.remove(full_path)
-                except OSError:
-                    pass
+class InstallerApiBridge:
+    def __init__(self, root_dir: str, window_ref=None):
+        self.root_dir = root_dir
+        self.window = window_ref
 
-def get_icon_flag(root_dir: str, icon_filename: str) -> str:
-    icons_dir = os.path.join(root_dir, "frontend", "assets", "icons")
-    candidates = [icon_filename, "logo.ico", "logo_installer.ico", "app_icon.ico"]
-    for cand in candidates:
-        icon_path = os.path.join(icons_dir, cand)
-        if os.path.exists(icon_path):
-            print(f"✓ Найдена иконка: {cand}")
-            return f'--icon="{icon_path}" '
-    return ''
+    def set_window(self, window):
+        self.window = window
+
+    def get_installer_info(self) -> Dict[str, Any]:
+        local_app_data = os.environ.get("LOCALAPPDATA", os.path.expanduser("~"))
+        def_path = os.path.join(local_app_data, "Programs", "Prose")
+        
+        # Сканируем архив, игнорируя служебный base_library.zip
+        zip_name = "Prose"
+        search_dir = getattr(sys, '_MEIPASS', self.root_dir)
+        for f in os.listdir(search_dir):
+            fname = f.lower()
+            if fname.endswith('.zip') and fname != 'base_library.zip':
+                zip_name = os.path.splitext(f)[0]
+                break
+                
+        return {
+            "default_path": def_path,
+            "version_name": zip_name
+        }
+
+    def check_is_update(self, target_path: str) -> bool:
+        return os.path.exists(os.path.join(target_path, "Prose.exe"))
+
+    def select_folder_dialog(self) -> str:
+        if not self.window: return ""
+        result = self.window.create_file_dialog(webview.FOLDER_DIALOG)
+        return result[0] if result else ""
+
+    def check_system_requirements(self, target_path: str) -> Dict[str, Any]:
+        return SystemRequirementsChecker.run_all_checks(target_path)
+
+    def open_external_link(self, url: str) -> bool:
+        if url.startswith("http://") or url.startswith("https://"):
+            webbrowser.open(url)
+            return True
+        return False
+
+    def start_installation(self, install_path: str, create_desktop: bool, create_start_menu: bool) -> Dict[str, Any]:
+        install_path = os.path.abspath(install_path)
+
+        if not InstallerEngine.is_path_writable(install_path):
+            if not InstallerEngine.is_admin():
+                InstallerEngine.request_uac_elevation(install_path)
+                return {"success": False, "reason": "uac_requested"}
+
+        # Игнорируем base_library.zip от PyInstaller и берем ТОЛЬКО наш архив программы
+        search_dir = getattr(sys, '_MEIPASS', self.root_dir)
+        zip_payload = None
+        for f in os.listdir(search_dir):
+            fname = f.lower()
+            if fname.endswith('.zip') and fname != 'base_library.zip':
+                zip_payload = os.path.join(search_dir, f)
+                break
+                
+        if not zip_payload:
+            return {"success": False, "error": "Архив с дистрибутивом Prose не найден внутри установщика."}
+
+        def progress_callback(percent: int, current_file: str):
+            if self.window:
+                safe_file = current_file.replace('\\', '/').replace("'", "\\'")
+                self.window.evaluate_js(f"if (window.installer_store) window.installer_store.updateProgress({percent}, '{safe_file}');")
+
+        success = InstallerEngine.extract_embedded_payload(zip_payload, install_path, progress_callback)
+
+        if success:
+            InstallerEngine.setup_shortcuts_and_uninstaller(install_path, create_desktop, create_start_menu)
+            return {"success": True}
+        else:
+            return {"success": False, "reason": "extract_failed", "error": "Не удалось распаковать архив программы."}
+
+    def finish_and_launch(self, install_path: str) -> None:
+        exe_path = os.path.join(install_path, "Prose.exe")
+        if os.path.exists(exe_path):
+            subprocess.Popen([exe_path], cwd=install_path)
+        if self.window:
+            self.window.destroy()
+
+    def close_installer(self) -> None:
+        if self.window:
+            self.window.destroy()
+
 
 def main():
     root_dir = os.path.dirname(os.path.abspath(__file__))
-    dist_dir = os.path.join(root_dir, "dist")
-    build_dir = os.path.join(root_dir, "build")
-    
-    print("=== 1. ОЧИСТКА ВРЕМЕННОГО КЕША ПИТОНА И СТАРЫХ СБОРК ===")
-    cleanup_pycache(root_dir)
-    
-    if os.path.exists(dist_dir): shutil.rmtree(dist_dir)
-    if os.path.exists(build_dir): shutil.rmtree(build_dir)
+    frontend_html = os.path.join(root_dir, "frontend", "index.html")
 
-    app_icon_flag = get_icon_flag(root_dir, "logo.ico")
-    setup_icon_flag = get_icon_flag(root_dir, "logo_installer.ico")
+    api_bridge = InstallerApiBridge(root_dir)
 
-    # 1. Собираем Prose.exe
-    print("\n--- 2. Сборка основного приложения Prose.exe ---")
-    pyinstaller_app_cmd = (
-        f'pyinstaller --noconfirm --onedir --windowed {app_icon_flag}'
-        f'--name "Prose" '
-        f'--add-data "{os.path.join(root_dir, "frontend")};frontend" '
-        f'--add-data "{os.path.join(root_dir, "backend")};backend" '
-        f'"{os.path.join(root_dir, "backend", "main.py")}"'
+    window = webview.create_window(
+        title='Prose Setup',
+        url=frontend_html,
+        js_api=api_bridge,
+        width=580,
+        height=520,
+        resizable=False,
+        frameless=True,
+        background_color='#000000'
     )
-    run_cmd(pyinstaller_app_cmd)
+    api_bridge.set_window(window)
 
-    prose_dist_dir = os.path.join(dist_dir, "Prose")
-    
-    shutil.copytree(os.path.join(root_dir, "plugins"), os.path.join(prose_dist_dir, "plugins"), dirs_exist_ok=True)
-    os.makedirs(os.path.join(prose_dist_dir, "datasets"), exist_ok=True)
-    os.makedirs(os.path.join(prose_dist_dir, "config"), exist_ok=True)
+    try:
+        webview.start(gui='edgechromium', debug=False)
+    except Exception as e:
+        logging.error(f"WebView2 initialization failed: {e}")
+        ctypes.windll.user32.MessageBoxW(
+            0, 
+            "Для работы установщика требуется Microsoft Edge WebView2 Runtime.\n\nНажмите ОК, чтобы открыть страницу скачивания компонента.", 
+            "Отсутствует системный компонент", 
+            0x10
+        )
+        webbrowser.open("https://developer.microsoft.com/en-us/microsoft-edge/webview2/")
+        sys.exit(1)
 
-    # Вторичная очистка скопированных плагинов от __pycache__
-    cleanup_pycache(prose_dist_dir)
-
-    # 2. Упаковываем в портативный ZIP
-    print("\n--- 3. Упаковка Portable ZIP ---")
-    zip_portable_path = os.path.join(dist_dir, "Prose_v1.0_Portable.zip")
-    with zipfile.ZipFile(zip_portable_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-        for root, dirs, files in os.walk(prose_dist_dir):
-            for file in files:
-                abs_file = os.path.join(root, file)
-                rel_file = os.path.relpath(abs_file, prose_dist_dir)
-                zipf.write(abs_file, rel_file)
-
-    # 3. Собираем установщик Prose_Setup.exe с зашитым ZIP
-    print("\n--- 4. Сборка автономного установщика Prose_Setup.exe ---")
-    installer_dir = os.path.join(root_dir, "installer")
-    pyinstaller_setup_cmd = (
-        f'pyinstaller --noconfirm --onefile --windowed {setup_icon_flag}'
-        f'--name "Prose_Setup" '
-        f'--add-data "{zip_portable_path};." '
-        f'--add-data "{os.path.join(installer_dir, "frontend")};frontend" '
-        f'"{os.path.join(installer_dir, "main.py")}"'
-    )
-    run_cmd(pyinstaller_setup_cmd)
-
-    print("\n==========================================")
-    print(" СБОРКА УСПЕШНО ЗАВЕРШЕНА!")
-    print(f" 1. Файл установки: {os.path.join(dist_dir, 'Prose_Setup.exe')}")
-    print(f" 2. Portable архив: {zip_portable_path}")
-    print(f" 3. Распакованная программа: {prose_dist_dir}")
-    print("==========================================")
 
 if __name__ == '__main__':
     main()
