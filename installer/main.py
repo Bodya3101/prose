@@ -19,25 +19,14 @@ class InstallerApiBridge:
         self.window = window
 
     def get_installer_info(self) -> Dict[str, Any]:
-        """Определяет дефолтный путь и имя зашитого ZIP-архива (для вывода версии)"""
         local_app_data = os.environ.get("LOCALAPPDATA", os.path.expanduser("~"))
         def_path = os.path.join(local_app_data, "Programs", "Prose")
-        
-        # Сканируем папку сборки на наличие ZIP-архива
-        zip_name = "Prose"
-        search_dir = getattr(sys, '_MEIPASS', self.root_dir)
-        for f in os.listdir(search_dir):
-            if f.lower().endswith('.zip') and 'payload' not in f.lower():
-                zip_name = os.path.splitext(f)[0] # Отрезаем .zip
-                break
-                
         return {
             "default_path": def_path,
-            "version_name": zip_name
+            "version_name": "Prose v1.0"
         }
 
     def check_is_update(self, target_path: str) -> bool:
-        """Проверяет, установлен ли Prose в выбранной папке (включает режим Обновления)"""
         return os.path.exists(os.path.join(target_path, "Prose.exe"))
 
     def select_folder_dialog(self) -> str:
@@ -62,16 +51,20 @@ class InstallerApiBridge:
                 InstallerEngine.request_uac_elevation(install_path)
                 return {"success": False, "reason": "uac_requested"}
 
-        # Поиск архива в сборке
+        # ПРИНУДИТЕЛЬНЫЙ ПОИСК ИМЕННО PROSE АРХИВА
         search_dir = getattr(sys, '_MEIPASS', self.root_dir)
-        zip_payload = None
-        for f in os.listdir(search_dir):
-            if f.lower().endswith('.zip'):
-                zip_payload = os.path.join(search_dir, f)
-                break
-                
-        if not zip_payload:
-            return {"success": False, "error": "Архив с дистрибутивом не найден внутри установщика."}
+        zip_payload = os.path.join(search_dir, "Prose_v1.0_Portable.zip")
+
+        if not os.path.exists(zip_payload):
+            for f in os.listdir(search_dir):
+                fname = f.lower()
+                if fname.endswith('.zip') and fname != 'base_library.zip':
+                    if 'prose' in fname or 'portable' in fname:
+                        zip_payload = os.path.join(search_dir, f)
+                        break
+
+        if not zip_payload or not os.path.exists(zip_payload):
+            return {"success": False, "error": "Архив Prose_v1.0_Portable.zip не найден внутри установщика."}
 
         def progress_callback(percent: int, current_file: str):
             if self.window:
@@ -97,13 +90,13 @@ class InstallerApiBridge:
         if self.window:
             self.window.destroy()
 
+
 def main():
     root_dir = os.path.dirname(os.path.abspath(__file__))
     frontend_html = os.path.join(root_dir, "frontend", "index.html")
 
     api_bridge = InstallerApiBridge(root_dir)
 
-    # УБРАН easy_drag=True! Перетаскивание происходит нативно через CSS -webkit-app-region
     window = webview.create_window(
         title='Prose Setup',
         url=frontend_html,
@@ -129,6 +122,6 @@ def main():
         webbrowser.open("https://developer.microsoft.com/en-us/microsoft-edge/webview2/")
         sys.exit(1)
 
-# ВОТ ЭТОТ БЛОК БЫЛ СТЁР:
+
 if __name__ == '__main__':
     main()

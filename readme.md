@@ -1,5 +1,3 @@
-
-```markdown
 <div align="center">
 
   <img src="frontend/assets/images/logo_about.png" width="120" alt="Prose Logo" style="border-radius: 18px;" />
@@ -165,4 +163,3 @@ def initialize_plugin(api_instance):
     <img src="https://img.shields.io/badge/GitHub-Bodya3101-181717?style=for-the-badge&logo=github&logoColor=white" alt="GitHub Profile"/>
   </a>
 </div>
-```

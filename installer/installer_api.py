@@ -38,6 +38,7 @@ class InstallerEngine:
     @classmethod
     def extract_embedded_payload(cls, zip_payload_path: str, dest_dir: str, progress_callback: Callable[[int, str], None]) -> bool:
         if not os.path.exists(zip_payload_path):
+            logging.error(f"Payload ZIP not found: {zip_payload_path}")
             return False
 
         os.makedirs(dest_dir, exist_ok=True)
@@ -46,6 +47,13 @@ class InstallerEngine:
         try:
             with zipfile.ZipFile(zip_payload_path, 'r') as zip_ref:
                 members = zip_ref.infolist()
+                
+                # ЖЕСТКАЯ ПРОВЕРКА: Архив ОБЯЗАН содержать Prose.exe!
+                filenames_lower = [m.filename.lower() for m in members]
+                if not any('prose.exe' in f for f in filenames_lower):
+                    logging.error(f"ОШИБКА: Архив {zip_payload_path} не содержит Prose.exe! Распаковка отменена.")
+                    return False
+
                 total_files = len(members)
                 if total_files == 0:
                     return False
@@ -55,7 +63,7 @@ class InstallerEngine:
                     if not target_file_path.startswith(dest_dir_abs):
                         raise SecurityError(f"Zip Slip attempt blocked: {member.filename}")
 
-                    # БЕЗОПАСНОЕ ОБНОВЛЕНИЕ: Защищаем конфигурации и датасеты юзера от перезаписи
+                    # Не перезаписываем пользовательские данные при обновлении
                     is_user_data = member.filename.startswith('config/') or member.filename.startswith('datasets/')
                     if is_user_data and os.path.exists(target_file_path):
                         continue
