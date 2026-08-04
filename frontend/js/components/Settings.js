@@ -9,9 +9,10 @@ export default {
                 language: 'ru',
                 disable_animations: false,
                 disable_accents: false,
+                dev_mode: false,
                 font_size: 14
             },
-            showLangDropdown: false, // Флаг открытого меню языков
+            showLangDropdown: false,
             tempApiKey: "",
             hasApiKey: false,
             showApiKey: false,
@@ -71,14 +72,13 @@ export default {
             await window.pywebview.api.update_setting("language", this.tempSettings.language);
             await window.pywebview.api.update_setting("disable_animations", this.tempSettings.disable_animations);
             await window.pywebview.api.update_setting("disable_accents", this.tempSettings.disable_accents);
+            await window.pywebview.api.update_setting("dev_mode", this.tempSettings.dev_mode);
             await window.pywebview.api.update_setting("font_size", this.tempSettings.font_size);
             
             store.settings = { ...this.tempSettings };
             
             this.applyGlobalSystemStyles();
-            
-            const r = await window.pywebview.api.get_locale(store.settings.language);
-            if (r && r.success) store.localeData = r.data;
+            await store.setLanguage(this.tempSettings.language);
             
             if (this.tempApiKey.trim() !== "") {
                 await window.pywebview.api.save_openrouter_key(this.tempApiKey.trim());
@@ -119,7 +119,6 @@ export default {
                         <span>{{ store.t('settings_lang', 'Язык интерфейса:') }}</span>
                     </div>
 
-                    <!-- 👇 КАСТОМНЫЙ ДРОПДАУН ВМЕСТО СИСТЕМНОГО SELECT 👇 -->
                     <div style="position: relative; width: 160px;">
                         <div class="custom-select-trigger" @click="showLangDropdown = !showLangDropdown">
                             <span>{{ getLangLabel(tempSettings.language) }}</span>
@@ -150,6 +149,15 @@ export default {
                 <div class="cm-toggle-card" style="background: #161616;">
                     <span>{{ store.t('settings_disable_accents', 'Отключить цвета ролей') }}</span>
                     <label class="toggle-switch"><input type="checkbox" v-model="tempSettings.disable_accents"><span class="toggle-slider"></span></label>
+                </div>
+
+                <!-- ТУМБЛЕР РЕЖИМА РАЗРАБОТЧИКА -->
+                <div class="cm-toggle-card" style="background: #161616;">
+                    <div style="display: flex; flex-direction: column;">
+                        <span>{{ store.t('settings_dev_mode', 'Режим разработчика (DevTools)') }}</span>
+                        <small style="font-size: 10px; color: #808080;">*Требуется перезапуск программы</small>
+                    </div>
+                    <label class="toggle-switch"><input type="checkbox" v-model="tempSettings.dev_mode"><span class="toggle-slider"></span></label>
                 </div>
 
                 <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">

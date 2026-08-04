@@ -11,6 +11,8 @@ const app = createApp({
         return { store: window.installer_store };
     },
     async mounted() {
+        window.installer_store = installer_store;
+
         window.addEventListener('pywebviewready', async () => {
             if (window.pywebview && window.pywebview.api) {
                 const info = await window.pywebview.api.get_installer_info();
@@ -21,6 +23,14 @@ const app = createApp({
         });
     },
     methods: {
+        // НААТИВНЫЙ ДРАГ WINDOWS ПРИ КЛИКЕ НА ШАПКУ
+        startDrag(e) {
+            if (e.target.closest('.no-drag')) return;
+            if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.start_native_drag === 'function') {
+                window.pywebview.api.start_native_drag();
+            }
+        },
+
         async browseFolder() {
             if (!window.pywebview) return;
             const chosen = await window.pywebview.api.select_folder_dialog();

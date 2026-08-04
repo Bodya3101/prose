@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 import keyring
 import logging
@@ -15,6 +16,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 APP_NAME = "LLM_Dataset_Editor"
 
+
 class FormatAdapterManager:
     """Менеджер форматов датасетов с поддержкой встроенных стандартов и расширений плагинов"""
     def __init__(self):
@@ -22,7 +24,6 @@ class FormatAdapterManager:
         self._register_builtins()
 
     def register_adapter(self, format_id: str, display_name: str, to_canonical: callable, from_canonical: callable):
-        """Метод для регистрации форматов в ядре и плагинах"""
         self.adapters[format_id] = {
             "id": format_id,
             "name": display_name,
@@ -34,7 +35,6 @@ class FormatAdapterManager:
         return [{"id": k, "name": v["name"]} for k, v in self.adapters.items()]
 
     def to_canonical(self, raw_json: dict, format_id: str) -> dict:
-        """Переводит внешнюю разметку (ChatML, ShareGPT, Alpaca) в единый стандарт Vue"""
         adapter = self.adapters.get(format_id, self.adapters["standard"])
         try:
             res = adapter["to_canonical"](raw_json)
@@ -49,7 +49,6 @@ class FormatAdapterManager:
             return {"system": "", "user": "", "thought": "", "assistant": ""}
 
     def from_canonical(self, canonical_data: dict, format_id: str) -> dict:
-        """Переводит стандарт Vue в целевой формат файла при сохранении"""
         adapter = self.adapters.get(format_id, self.adapters["standard"])
         try:
             return adapter["from_canonical"](canonical_data)
@@ -58,6 +57,7 @@ class FormatAdapterManager:
             return canonical_data
 
     def _register_builtins(self):
+        # 1. STANDARD
         self.register_adapter(
             "standard", "Standard JSONL (system / user / assistant)",
             lambda j: {
@@ -76,6 +76,7 @@ class FormatAdapterManager:
             }
         )
 
+        # 2. CHATML
         def chatml_to_canonical(j):
             msgs = j.get("messages", [])
             sys_val, user_val, thought_val, asst_val = "", "", "", ""
@@ -107,6 +108,7 @@ class FormatAdapterManager:
 
         self.register_adapter("chatml", "ChatML (OpenAI / HuggingFace)", chatml_to_canonical, chatml_from_canonical)
 
+        # 3. SHAREGPT
         def sharegpt_to_canonical(j):
             convs = j.get("conversations", [])
             sys_val = str(j.get("system", ""))
@@ -132,6 +134,7 @@ class FormatAdapterManager:
 
         self.register_adapter("sharegpt", "ShareGPT (Conversations)", sharegpt_to_canonical, sharegpt_from_canonical)
 
+        # 4. ALPACA
         def alpaca_to_canonical(j):
             sys_val = str(j.get("system", ""))
             inst = str(j.get("instruction", ""))
@@ -147,11 +150,8 @@ class FormatAdapterManager:
 
         self.register_adapter("alpaca", "Alpaca (Instruction / Output)", alpaca_to_canonical, alpaca_from_canonical)
 
+
 class DesktopApi:
-    """
-    Единый класс API для связи Vue.js и Python.
-    Архитектура Zero Trust: все данные от фронтенда валидируются.
-    """
     def __init__(self, root_dir: str):
         self.root_dir = root_dir
         self.datasets_dir = os.path.join(root_dir, 'datasets')
@@ -170,49 +170,25 @@ class DesktopApi:
         self.plugin_locales = {}
         self.plugin_meta_list = []
 
+    def _get_resource_path(self, relative_path: str) -> str:
+        """Резолвит пути к ресурсам фронтенда с учетом режима PyInstaller _internal"""
+        if getattr(sys, 'frozen', False):
+            base_dir = getattr(sys, '_MEIPASS', os.path.dirname(sys.executable))
+        else:
+            base_dir = self.root_dir
+        return os.path.join(base_dir, relative_path)
+
     def _init_projects_file(self):
-        """Создает файл метаданных проектов, если его нет."""
         if not os.path.exists(self.projects_file):
             with open(self.projects_file, 'w', encoding='utf-8') as f:
                 json.dump([], f)
 
     def register_format_adapter(self, format_id: str, display_name: str, to_canonical: callable, from_canonical: callable):
-        """Регистрация пользовательских адаптеров из плагинов"""
         self.format_manager.register_adapter(format_id, display_name, to_canonical, from_canonical)
 
     def get_available_formats(self) -> list:
-        """Возвращает список всех форматов на фронтенд"""
         return self.format_manager.get_available_formats()
 
-    def convert_dataset_format(self, filename: str, from_format: str, to_format: str) -> dict:
-        """Переконвертирует весь файл .jsonl на диске из одного формата в другой"""
-        safe_path = os.path.abspath(os.path.join(self.datasets_dir, filename))
-        if not safe_path.startswith(os.path.abspath(self.datasets_dir)) or not os.path.exists(safe_path):
-            return {"error": "Файл не найден."}
-
-        temp_path = safe_path + ".tmp"
-        try:
-            with open(safe_path, 'rb') as src, open(temp_path, 'w', encoding='utf-8') as dst:
-                for line in src:
-                    line_str = line.decode('utf-8').strip()
-                    if not line_str: continue
-                    try:
-                        raw_json = json.loads(line_str)
-                        canonical = self.format_manager.to_canonical(raw_json, from_format)
-                        new_json = self.format_manager.from_canonical(canonical, to_format)
-                        dst.write(json.dumps(new_json, ensure_ascii=False) + "\n")
-                    except Exception as e:
-                        logging.error(f"Error converting line: {e}")
-
-            os.replace(temp_path, safe_path)
-            self.current_project_format = to_format
-            self._reindex_current_file()
-            return {"success": True}
-        except Exception as e:
-            if os.path.exists(temp_path): os.remove(temp_path)
-            return {"error": str(e)}
-
-    
     def get_settings(self) -> dict:
         return self.settings_manager.get_all()
 
@@ -220,9 +196,10 @@ class DesktopApi:
         return self.settings_manager.update_setting(key, value)
 
     def get_locale(self, lang_code: str) -> dict:
-        """Рекурсивная загрузка локалей со слиянием Fallback"""
-        base_lang = "ru" if lang_code == "ru" else "en"
-        base_path = os.path.join(self.root_dir, 'frontend', 'locales', f'{base_lang}.json')
+        """Загружает язык с поддержкой базового словаря и плагинов"""
+        # Гарантируем корректный язык (ru или en)
+        target_lang = lang_code.lower() if lang_code in ["ru", "en"] else "en"
+        base_path = self._get_resource_path(os.path.join('frontend', 'locales', f'{target_lang}.json'))
         
         merged_data = {}
         if os.path.exists(base_path):
@@ -230,8 +207,9 @@ class DesktopApi:
                 with open(base_path, 'r', encoding='utf-8') as f:
                     merged_data = json.load(f)
             except Exception as e:
-                logging.error(f"Error loading base locale: {e}")
+                logging.error(f"Error loading base locale {base_path}: {e}")
 
+        # Накладываем переводы плагинов
         plugins_dir = os.path.join(self.root_dir, 'plugins')
         if os.path.exists(plugins_dir):
             for folder in os.listdir(plugins_dir):
@@ -243,17 +221,16 @@ class DesktopApi:
                         if not file.endswith('.json') or file == 'about.json': continue
                         file_lang = file[:-5].lower()
                         if file_lang == lang_code or (lang_code == 'zh' and file_lang.startswith('zh')):
-                            target_path = os.path.join(root, file)
+                            target_file = os.path.join(root, file)
                             try:
-                                with open(target_path, 'r', encoding='utf-8') as f:
+                                with open(target_file, 'r', encoding='utf-8') as f:
                                     merged_data.update(json.load(f))
                             except Exception as e:
-                                logging.error(f"Error reading locale {target_path}: {e}")
+                                logging.error(f"Error reading locale {target_file}: {e}")
 
         return {"success": True, "data": merged_data}
 
     def get_available_languages(self) -> list:
-        """Рекурсивное обнаружение доступных языков во всех папках плагинов"""
         languages = ["ru", "en"]
         plugins_dir = os.path.join(self.root_dir, 'plugins')
         if os.path.exists(plugins_dir):
@@ -306,7 +283,6 @@ class DesktopApi:
             return {"error": str(e)}
 
     def create_project(self, name: str, desc: str, hex_color: str, use_single_prompt: bool, use_thinking: bool, logo_base64: str, datasets: list, dataset_format: str = "standard") -> dict:
-        """Создание проекта (Принимает 8 аргументов от JS)"""
         name = str(name or "").strip()[:50]
         desc = str(desc or "").strip()[:100]
         hex_color = str(hex_color or "")
@@ -398,8 +374,34 @@ class DesktopApi:
             return {"success": True}
         except Exception as e: return {"error": str(e)}
 
+    def convert_dataset_format(self, filename: str, from_format: str, to_format: str) -> dict:
+        safe_path = os.path.abspath(os.path.join(self.datasets_dir, filename))
+        if not safe_path.startswith(os.path.abspath(self.datasets_dir)) or not os.path.exists(safe_path):
+            return {"error": "Файл не найден."}
+
+        temp_path = safe_path + ".tmp"
+        try:
+            with open(safe_path, 'rb') as src, open(temp_path, 'w', encoding='utf-8') as dst:
+                for line in src:
+                    line_str = line.decode('utf-8').strip()
+                    if not line_str: continue
+                    try:
+                        raw_json = json.loads(line_str)
+                        canonical = self.format_manager.to_canonical(raw_json, from_format)
+                        new_json = self.format_manager.from_canonical(canonical, to_format)
+                        dst.write(json.dumps(new_json, ensure_ascii=False) + "\n")
+                    except Exception as e:
+                        logging.error(f"Error converting line: {e}")
+
+            os.replace(temp_path, safe_path)
+            self.current_project_format = to_format
+            self._reindex_current_file()
+            return {"success": True}
+        except Exception as e:
+            if os.path.exists(temp_path): os.remove(temp_path)
+            return {"error": str(e)}
+
     def _reindex_current_file(self) -> None:
-        """Переиндексирует байтовые смещения файла"""
         if not self.current_file_path or not os.path.exists(self.current_file_path):
             self.line_offsets = []
             return
@@ -414,7 +416,6 @@ class DesktopApi:
             logging.error(f"Reindex error: {e}")
 
     def load_dataset_index(self, filename: str, format_id: str = "standard") -> Dict[str, Any]:
-        """Индексирует файл и фиксирует выбранный формат разметки"""
         safe_path = os.path.abspath(os.path.join(self.datasets_dir, filename))
         if not safe_path.startswith(os.path.abspath(self.datasets_dir)):
             return {"error": "Path Traversal blocked."}
@@ -428,7 +429,6 @@ class DesktopApi:
         return {"success": True, "total_lines": len(self.line_offsets)}
 
     def get_dataset_entry(self, index: int) -> Dict[str, Any]:
-        """Читает строку в бинарном режиме и переводит через Адаптер в канонический вид Vue"""
         if not self.current_file_path or not self.line_offsets:
             return {"error": "No file."}
             
@@ -448,7 +448,6 @@ class DesktopApi:
             return {"error": str(e)}
 
     def save_dataset_entry(self, index: int, new_data: dict) -> dict:
-        """Сохранение канонических данных в целевой формат проекта"""
         if not self.current_file_path: return {"error": "No file."}
 
         try:
@@ -547,9 +546,9 @@ class DesktopApi:
         except Exception as e: return {"success": False, "error": str(e)}
 
     def get_about_info(self) -> dict:
-        about_path = os.path.join(self.root_dir, 'backend', 'config', 'about.json')
+        about_path = os.path.join(self.root_dir, 'config', 'about.json')
         default_about = {
-            "version": "1.0", "github_username": "Bodya3101",
+            "version": "1.0.1", "github_username": "Bodya3101",
             "github_profile_url": "https://github.com/Bodya3101",
             "github_repo_url": "https://github.com/Bodya3101/prose",
             "logo_placeholder_path": "assets/images/logo_about.png"
@@ -560,6 +559,7 @@ class DesktopApi:
         try:
             with open(about_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
+                data["version"] = "1.0.1"
                 data["logo_placeholder_path"] = "assets/images/logo_about.png"
                 data["github_repo_url"] = "https://github.com/Bodya3101/prose"
                 return data

@@ -12,7 +12,7 @@ export default {
 
             modelsList: ["google/gemma-2-9b-it:free"],
             selectedModel: "google/gemma-2-9b-it:free", 
-            showModelDropdown: false, // Флаг кастомного выпадающего списка
+            showModelDropdown: false, 
             
             genMode: 'single', 
             batchSize: 5,
@@ -66,11 +66,17 @@ export default {
         
         async startGeneration() {
             if (!this.generatorPrompt.trim()) { 
-                await this.store.showAlert("Ошибка", "Опишите задачу генератору!"); 
+                await this.store.showAlert(
+                    this.store.t('alert_error_title', 'Error'), 
+                    this.store.t('or_err_no_prompt', 'Опишите задачу генератору!')
+                ); 
                 return; 
             }
             if (!this.selectedModel.trim()) { 
-                await this.store.showAlert("Ошибка", "Выберите или введите модель!"); 
+                await this.store.showAlert(
+                    this.store.t('alert_error_title', 'Error'), 
+                    this.store.t('or_err_no_model', 'Выберите или введите модель!')
+                ); 
                 return; 
             }
             
@@ -109,7 +115,10 @@ export default {
             }
 
             if (emptyFields.length === 0) {
-                await this.store.showAlert("Предупреждение", "Все поля захардкожены! ИИ нечего генерировать.");
+                await this.store.showAlert(
+                    this.store.t('alert_warning_title', 'Warning'), 
+                    this.store.t('or_err_all_hardcoded', 'Все поля захардкожены! ИИ нечего генерировать.')
+                );
                 this.isGenerating = false;
                 return;
             }
@@ -151,7 +160,10 @@ export default {
                 this.statusMessage = "Готово!";
                 setTimeout(() => { this.close(); }, 1500);
             } else {
-                await this.store.showAlert("Ошибка генерации", r.error || "Неверный формат ответа ИИ");
+                await this.store.showAlert(
+                    this.store.t('alert_error_title', 'Error'), 
+                    r.error || "Неверный формат ответа ИИ"
+                );
                 this.isGenerating = false;
             }
         }
@@ -161,29 +173,27 @@ export default {
             <div class="or-warning-modal">
                 <div class="or-warning-header">
                     <img src="/plugins/openrouter_plugin/frontend/assets/icons/warning.svg" class="or-warning-icon" alt="!">
-                    Внимание!
+                    {{ store.t('or_warning_title', 'Внимание!') }}
                 </div>
-                <div class="or-warning-text">
-                    Автоматическая генерация датасетов с использованием API-провайдеров может нарушать их Условия Использования (ToS).<br><br>
-                    Вы берете на себя полную ответственность за использование сгенерированных данных.
+                <div class="or-warning-text" v-html="store.t('or_warning_text', 'Автоматическая генерация датасетов с использованием API-провайдеров может нарушать их Условия Использования (ToS).<br><br>Вы берете на себя полную ответственность за использование сгенерированных данных.')">
                 </div>
                 
                 <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; width: 100%; padding: 0 5px; color: #A0A0A0;">
-                    <span>Больше не показывать</span>
+                    <span>{{ store.t('or_dont_show', 'Больше не показывать') }}</span>
                     <label class="toggle-switch"><input type="checkbox" v-model="dontShowAgain"><span class="toggle-slider"></span></label>
                 </div>
 
                 <div class="or-warning-buttons">
                     <button class="or-btn-danger" @click="acceptDisclaimer" :disabled="countdown > 0">
-                        Я согласен {{ countdown > 0 ? '(' + countdown + 'с...)' : '' }}
+                        {{ store.t('or_accept', 'Я согласен') }} {{ countdown > 0 ? '(' + countdown + 's...)' : '' }}
                     </button>
-                    <button class="or-btn-cancel" @click="close">Отказаться</button>
+                    <button class="or-btn-cancel" @click="close">{{ store.t('or_decline', 'Отказаться') }}</button>
                 </div>
             </div>
         </div>
 
         <div v-else-if="step === 'dashboard'" class="create-modal" style="max-width: 600px; padding: 25px; gap: 15px;">
-            <div class="cm-header">AI GENERATOR<div class="cm-red-dot" @click="close" title="Закрыть"></div></div>
+            <div class="cm-header">AI GENERATOR<div class="cm-red-dot" @click="close" data-tooltip="Закрыть"></div></div>
 
             <div style="display: flex; flex-direction: column; gap: 5px; width: 100%; text-align: left;">
                 <span style="font-size: 12px; color: #4E6DB2; font-weight: bold;">Задача для ИИ-генератора:</span>
@@ -191,8 +201,6 @@ export default {
             </div>
 
             <div style="display: flex; gap: 15px; width: 100%;">
-                
-                <!-- КАСТОМНЫЙ ЗАКРУГЛЕННЫЙ ВЫПАДАЮЩИЙ СПИСОК ДЛЯ МОДЕЛЕЙ -->
                 <div style="display: flex; flex-direction: column; gap: 5px; flex: 1; position: relative;">
                     <span style="font-size: 12px; color: #A0A0A0;">Модель OpenRouter:</span>
                     <input type="text" 

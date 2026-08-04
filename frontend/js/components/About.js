@@ -69,7 +69,7 @@ export default {
                 <div class="cm-dataset-file" style="width: 100%; display: flex; flex-direction: column; gap: 10px; padding: 15px;">
                     <div style="display: flex; justify-content: space-between; width: 100%; font-size: 14px;">
                         <span style="color: #808080;">{{ store.t('about_version_label', 'Версия:') }}</span>
-                        <span style="font-weight: bold; color: var(--text-main);">{{ aboutInfo.version || '1.0' }}</span>
+                        <span style="font-weight: bold; color: var(--text-main);">{{ aboutInfo.version || '1.0.1' }}</span>
                     </div>
                     <div style="display: flex; justify-content: space-between; width: 100%; font-size: 14px;">
                         <span style="color: #808080;">{{ store.t('about_author', 'Разработчик:') }}</span>

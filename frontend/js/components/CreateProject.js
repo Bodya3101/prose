@@ -96,7 +96,10 @@ export default {
         async submit() {
             if (!window.pywebview) return;
             if (!this.formData.name.trim()) { 
-                await store.showAlert("Ошибка", "Введите название проекта!"); 
+                await store.showAlert(
+                    store.t('alert_error_title', 'Error'), 
+                    store.t('alert_enter_project_name', 'Please enter a project name!')
+                ); 
                 return; 
             }
             
@@ -116,7 +119,10 @@ export default {
                 store.activeProject = r.project;
                 store.currentView = 'editor';
             } else {
-                await store.showAlert("Ошибка", `Ошибка создания: ${r.error}`);
+                await store.showAlert(
+                    store.t('alert_error_title', 'Error'), 
+                    store.t('alert_create_error', 'Creation error: ') + r.error
+                );
             }
         }
     },

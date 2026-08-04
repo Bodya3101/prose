@@ -42,8 +42,8 @@ const app = createApp({
             
             this.applyTheme();
             
-            const r = await window.pywebview.api.get_locale(store.settings.language);
-            if (r && r.success) store.localeData = r.data;
+            // Загружаем сохраненный язык через наш новый реактивный метод
+            await store.setLanguage(store.settings.language || 'ru');
         },
         
         applyTheme() {
@@ -70,9 +70,7 @@ const app = createApp({
             store.editor_buttons = [];
             store.active_overlay = null;
 
-            // СТРОГАЯ ИНИЦИАЛИЗАЦИЯ (const plug)
             for (const plug of discovered) {
-                // Защита от битых метаданных плагина
                 if (!plug || !plug.id) continue;
 
                 if (activeList.includes(plug.id) && plug.has_frontend) {

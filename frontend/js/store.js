@@ -3,11 +3,12 @@ const { reactive } = Vue;
 export const store = reactive({
     currentView: 'home',
     settings: { 
-        language: 'ru', 
+        language: 'en', // ENGLISH BY DEFAULT
         use_accent_colors: true, 
         disable_animations: false, 
         disable_accents: false,
         font_size: 14,
+        dev_mode: false,
         active_plugins: ["openrouter_plugin", "chinese_translation_plugin"],
         skip_openrouter_disclaimer: false
     },
@@ -18,17 +19,15 @@ export const store = reactive({
     visibleProjects: [],
     activeProject: null,
 
-    // РЕЕСТРЫ ПЛАГИНОВ
     editor_buttons: [],     
     active_overlay: null,   
     
-    // КАСТОМНАЯ ДИАЛОГОВАЯ СИСТЕМА (Замена native alert/confirm)
-    dialog: null, // { title, message, type: 'alert'|'confirm', resolve }
+    dialog: null, 
 
     showAlert(title, message) {
         return new Promise((resolve) => {
             this.dialog = {
-                title: title || 'Уведомление',
+                title: title || 'Notification',
                 message: message || '',
                 type: 'alert',
                 resolve
@@ -39,7 +38,7 @@ export const store = reactive({
     showConfirm(title, message) {
         return new Promise((resolve) => {
             this.dialog = {
-                title: title || 'Подтверждение',
+                title: title || 'Confirmation',
                 message: message || '',
                 type: 'confirm',
                 resolve
@@ -54,6 +53,17 @@ export const store = reactive({
         this.dialog = null;
     },
     
+    async setLanguage(langCode) {
+        if (!window.pywebview) return;
+        const targetLang = langCode || 'en';
+        this.settings.language = targetLang;
+        const r = await window.pywebview.api.get_locale(targetLang);
+        if (r && r.success) {
+            Object.keys(this.localeData).forEach(k => delete this.localeData[k]);
+            Object.assign(this.localeData, r.data);
+        }
+    },
+
     currentEntryData: {
         system: "",
         user: "",

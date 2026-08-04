@@ -18,12 +18,31 @@ class InstallerApiBridge:
     def set_window(self, window):
         self.window = window
 
+    def start_native_drag(self) -> None:
+        try:
+            if self.window and self.window.native:
+                hwnd = int(self.window.native.Handle)
+                ctypes.windll.user32.ReleaseCapture()
+                ctypes.windll.user32.SendMessageW(hwnd, 0x00A1, 2, 0)
+        except Exception as e:
+            logging.error(f"Native drag error: {e}")
+
     def get_installer_info(self) -> Dict[str, Any]:
         local_app_data = os.environ.get("LOCALAPPDATA", os.path.expanduser("~"))
         def_path = os.path.join(local_app_data, "Programs", "Prose")
+        
+        search_dir = getattr(sys, '_MEIPASS', self.root_dir)
+        version_str = "Prose v1.0.1" # ВЕРСИЯ 1.0.1 ПО УМОЛЧАНИЮ
+        
+        for f in os.listdir(search_dir):
+            fname = f.lower()
+            if fname.endswith('.zip') and fname != 'base_library.zip':
+                version_str = os.path.splitext(f)[0].replace('_Portable', '').replace('_', ' ')
+                break
+                
         return {
             "default_path": def_path,
-            "version_name": "Prose v1.0"
+            "version_name": version_str
         }
 
     def check_is_update(self, target_path: str) -> bool:
@@ -51,9 +70,8 @@ class InstallerApiBridge:
                 InstallerEngine.request_uac_elevation(install_path)
                 return {"success": False, "reason": "uac_requested"}
 
-        # ПРИНУДИТЕЛЬНЫЙ ПОИСК ИМЕННО PROSE АРХИВА
         search_dir = getattr(sys, '_MEIPASS', self.root_dir)
-        zip_payload = os.path.join(search_dir, "Prose_v1.0_Portable.zip")
+        zip_payload = os.path.join(search_dir, "Prose_v1.0.1_Portable.zip")
 
         if not os.path.exists(zip_payload):
             for f in os.listdir(search_dir):
@@ -64,7 +82,7 @@ class InstallerApiBridge:
                         break
 
         if not zip_payload or not os.path.exists(zip_payload):
-            return {"success": False, "error": "Архив Prose_v1.0_Portable.zip не найден внутри установщика."}
+            return {"success": False, "error": "Архив Prose_v1.0.1_Portable.zip не найден внутри установщика."}
 
         def progress_callback(percent: int, current_file: str):
             if self.window:
@@ -93,7 +111,7 @@ class InstallerApiBridge:
 
 def main():
     root_dir = os.path.dirname(os.path.abspath(__file__))
-    frontend_html = os.path.join(root_dir, "frontend", "index.html")
+    frontend_html = os.path.abspath(os.path.join(root_dir, "frontend", "index.html"))
 
     api_bridge = InstallerApiBridge(root_dir)
 
@@ -102,10 +120,10 @@ def main():
         url=frontend_html,
         js_api=api_bridge,
         width=580,
-        height=520,
+        height=540,
         resizable=False,
         frameless=True,
-        background_color='#000000'
+        background_color='#161616'
     )
     api_bridge.set_window(window)
 

@@ -6,22 +6,23 @@
     <title>Prose Setup</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
-<body class="pywebview-drag-region">
+<body>
     <div id="app" v-cloak class="installer-window">
         
-        <div class="top-right-controls no-drag">
-            <button class="control-btn" @click="store.toggleLanguage()" :data-tooltip="store.currentLang === 'ru' ? 'English' : 'Русский'">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#D9D9D9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="12" cy="12" r="10"></circle>
-                    <line x1="2" y1="12" x2="22" y2="12"></line>
-                    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10z"></path>
-                </svg>
-            </button>
-            <button class="control-btn close-btn" @click="closeInstaller">✕</button>
-        </div>
+        <!-- НААТИВНЫЙ ДРАГ ПРИ НАЖАТИИ КНОПКИ МЫШИ НА ШАПКУ -->
+        <header class="topbar" @mousedown="startDrag">
+            <div class="logo"></div> <!-- Надпись Prose удалена -->
+
+            <div class="top-right-controls no-drag">
+                <button class="control-btn" @click="store.toggleLanguage()" :data-tooltip="store.currentLang === 'ru' ? 'English' : 'Русский'">
+                    <img src="assets/icons/globe.png" alt="Lang" style="width: 16px; height: 16px; object-fit: contain;" onerror="this.style.display='none'">
+                </button>
+                <button class="control-btn close-btn" @click="closeInstaller">✕</button>
+            </div>
+        </header>
 
         <main class="main-content">
-            <transition name="slide-fade" mode="out-in">
+            <transition name="fade" mode="out-in">
                 
                 <!-- ШАГ 1: ПРИВЕТСТВИЕ -->
                 <div v-if="store.currentStep === 1" key="step1" class="step-card no-drag">
@@ -58,7 +59,8 @@
                             <svg class="folder-icon" @click.stop="browseFolder" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A0A0A0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
                             </svg>
-                            <input type="text" v-model="store.installPath" class="path-input">
+                            <!-- @mousedown.stop ПОЗВОЛЯЕТ ВЫДЕЛЯТЬ ТЕКСТ МЫШКОЙ БЕЗ ДРАГА -->
+                            <input type="text" v-model="store.installPath" class="path-input no-drag" @mousedown.stop>
                         </div>
                         
                         <div class="checkbox-group">
@@ -123,8 +125,7 @@
         </div>
     </div>
 
-    <!-- ПОДКЛЮЧАЕМ КАК ОБЫЧНЫЕ СКРИПТЫ БЕЗ type="module" -->
-    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="js/vue.global.js"></script>
     <script src="js/installer_store.js"></script>
     <script src="js/script.js"></script>
 </body>

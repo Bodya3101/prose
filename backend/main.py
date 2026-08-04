@@ -2,23 +2,21 @@ import os
 import sys
 import webview
 import logging
+import bottle
 
 from api import DesktopApi
 
 def get_app_resource_dir():
-    """Определяет корень веб-ресурсов (frontend) для .exe и обычной разработки"""
+    """Корень веб-ресурсов фронтенда (_internal в режиме .exe)"""
     if getattr(sys, 'frozen', False):
-        # В скомпилированном .exe файлы фронтенда упакованы в sys._MEIPASS (_internal)
         return getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
-    
     backend_dir = os.path.dirname(os.path.abspath(__file__))
     return os.path.abspath(os.path.join(backend_dir, '..'))
 
 def get_user_data_dir():
-    """Определяет папку для пользовательских данных (plugins, datasets, config) рядом с Prose.exe"""
+    """Папка пользовательских данных (plugins, datasets, config) рядом с Prose.exe"""
     if getattr(sys, 'frozen', False):
         return os.path.dirname(sys.executable)
-    
     backend_dir = os.path.dirname(os.path.abspath(__file__))
     return os.path.abspath(os.path.join(backend_dir, '..'))
 
@@ -26,7 +24,6 @@ def main():
     resource_dir = get_app_resource_dir()
     data_dir = get_user_data_dir()
 
-    # Перенаправление создаем в папке ресурсов фронтенда
     root_redirect = os.path.join(resource_dir, 'index.html')
     if not os.path.exists(root_redirect):
         try:
@@ -35,12 +32,20 @@ def main():
         except Exception as e:
             logging.error(f"Error creating root_redirect: {e}")
 
-    # API и Плагины завязываем на внешнюю папку рядом с Prose.exe
+    # РАЗДАЧА ПЛАГИНОВ ЧЕРЕЗ BOTTLE ИЗ ПАПКИ РЯДОМ С PROSE.EXE (Решает 404!)
+    plugins_dir = os.path.join(data_dir, 'plugins')
+    @bottle.route('/plugins/<filepath:path>')
+    def server_plugins(filepath):
+        return bottle.static_file(filepath, root=plugins_dir)
+
     api_instance = DesktopApi(data_dir)
 
     from plugin_manager import PluginManager
     plugin_mgr = PluginManager(data_dir, api_instance)
     plugin_mgr.load_plugins()
+
+    dev_mode = api_instance.get_settings().get("dev_mode", False)
+    logging.info(f"Запуск Prose. Режим разработчика (DevTools): {dev_mode}")
 
     window = webview.create_window(
         title='Prose',
@@ -53,7 +58,7 @@ def main():
         text_select=False
     )
 
-    webview.start(debug=False, http_server=True)
+    webview.start(debug=dev_mode, http_server=True)
 
 if __name__ == '__main__':
     main()

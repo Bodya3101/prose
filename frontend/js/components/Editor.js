@@ -12,7 +12,6 @@ export default {
             hfRepoId: "", hfPrivate: true, hfConnectionStatus: { success: null, message: "" }, isUploading: false,
             activeHistoryField: null, historyData: { previous: null, others: [] },
             
-            // ФОРМАТЫ И КОНВЕРТАЦИЯ
             currentFormat: "standard",
             availableFormats: [],
             showFormatMenu: false
@@ -26,7 +25,9 @@ export default {
                     : store.currentEntryData.system;
             },
             set(val) {
-                if (store.activeProject.use_single_prompt) {
+                if (store.activeProject.use_thinking) {
+                    store.currentEntryData.system = val;
+                } else if (store.activeProject.use_single_prompt) {
                     store.activeProject.global_system_prompt = val;
                     clearTimeout(this.saveTimeout);
                     this.saveTimeout = setTimeout(() => {
@@ -45,7 +46,6 @@ export default {
     async mounted() {
         if (!store.activeProject || !window.pywebview) return;
         
-        // ЗАЩИЩЕННЫЙ ВЫЗОВ ДЛЯ РЕДАКТОРА
         if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.get_available_formats === 'function') {
             try {
                 this.availableFormats = await window.pywebview.api.get_available_formats();
@@ -114,7 +114,33 @@ export default {
             return r.success;
         },
 
-        // СМЕНА И КОНВЕРТАЦИЯ ФОРМАТА В 1 КЛИК
+        // БЕЗОПАСНОЕ СОЗДАНИЕ НОВОЙ ЗАПИСИ (Защита от затирания первой записи)
+        async addNewEntry() {
+            if (!(await this.saveCurrentEntry())) return;
+            
+            // Если файл был пустой (0 записей), то после сохранения 1-й записи их стало 1
+            if (this.totalEntries === 0) {
+                this.totalEntries = 1;
+            }
+
+            const newIndex = this.totalEntries; // Вторая запись создается индексом 1
+            const blankPayload = { system: "", user: "", assistant: "" };
+            if (store.activeProject.use_thinking) blankPayload.thought = "";
+
+            if (window.pywebview) {
+                const r = await window.pywebview.api.save_dataset_entry(newIndex, blankPayload);
+                if (r.success) {
+                    this.totalEntries++;
+                    this.currentEntryIndex = newIndex;
+                    await this.loadEntry(this.currentEntryIndex);
+                }
+            } else {
+                this.clearFields();
+                this.totalEntries++;
+                this.currentEntryIndex = newIndex;
+            }
+        },
+
         async changeFormat(newFormatId) {
             if (newFormatId === this.currentFormat) {
                 this.showFormatMenu = false;
@@ -122,8 +148,8 @@ export default {
             }
 
             const confirmed = await store.showConfirm(
-                "Конвертация формата",
-                `Переконвертировать весь файл "${this.activeDatasetName}" в новый формат? Файл на диске будет автоматически переписан под выбранную разметку.`
+                store.t('format_convert_title', 'Конвертация формата'),
+                store.t('format_convert_msg', `Переконвертировать весь файл "${this.activeDatasetName}" в новый формат? Файл на диске будет автоматически переписан под выбранную разметку.`)
             );
 
             if (confirmed) {
@@ -156,9 +182,6 @@ export default {
             if (this.currentEntryIndex > 0) {
                 if (await this.saveCurrentEntry()) { this.currentEntryIndex--; await this.loadEntry(this.currentEntryIndex); }
             }
-        },
-        async addNewEntry() {
-            if (await this.saveCurrentEntry()) { this.clearFields(); this.totalEntries++; this.currentEntryIndex = this.totalEntries - 1; }
         },
         async goHome() {
             if (await this.saveCurrentEntry()) { 
@@ -222,14 +245,13 @@ export default {
     template: `
         <div class="editor-layout" @click.self="showDatasetSelector = false; showHfModal = false; showFormatMenu = false; activeHistoryField = null">
             <div class="dataset-stats" style="display: flex; align-items: center; gap: 12px; margin-bottom: 5px; position: relative;">
-                <button class="icon-btn" @click="goHome" style="background: transparent; border: none; padding: 0;">
+                <button class="icon-btn" @click="goHome" style="background: transparent; border: none; padding: 0;" :data-tooltip="store.t('btn_back', 'Назад')">
                     <img src="assets/icons/Forward.svg" alt="Back" style="transform: scaleX(-1); height: 20px;">
                 </button>
                 
                 <span style="font-size: 15px; color: #A0A0A0; font-style: italic; display: flex; align-items: center; gap: 8px; position: relative;">
                     {{ store.t('entry_label', 'Запись') }} #{{ currentEntryIndex + 1 }} ({{ activeDatasetName }})
                     
-                    <!-- БЕДЖ АКТИВНОГО ФОРМАТА С ПОПОВЕРОМ КОНВЕРТАЦИИ -->
                     <span @click.stop="showFormatMenu = !showFormatMenu" 
                           class="cp-default-btn" 
                           style="padding: 2px 8px; font-size: 11px; cursor: pointer; color: #4E6DB2; border-color: #4E6DB2; font-style: normal; font-weight: bold;"
@@ -237,7 +259,6 @@ export default {
                         [{{ activeFormatLabel }}]
                     </span>
 
-                    <!-- ПОПОВЕР ВЫБОРА ФОРМАТА -->
                     <div v-if="showFormatMenu" class="ds-selector-popover" style="left: 120px; top: 30px; width: 260px; padding: 8px 0; z-index: 2500;">
                         <div style="font-size: 11px; color: #808080; padding: 4px 12px; font-weight: bold; text-transform: uppercase;">
                             {{ store.t('format_label', 'Разметка датасета:') }}
@@ -298,14 +319,14 @@ export default {
                     <span v-if="store.activeProject.use_single_prompt" style="color: #4D986D; font-size: 12px; margin-left: 10px;">{{ store.t('role_system_global', '[Единый]') }}</span>
                     <div class="role-actions" style="position: relative;">
                         <img :src="hiddenBlocks.system ? 'assets/icons/close_eye.svg' : 'assets/icons/Eye.svg'" class="action-icon" @click="toggleBlock('system')">
-                        <img src="assets/icons/history.svg" class="action-icon" @click="toggleHistory('system')">
+                        <img src="assets/icons/history.svg" class="action-icon" @click="toggleHistory('system')" :data-tooltip="store.t('tooltip_history', 'История значений')">
                         <div v-if="activeHistoryField === 'system'" class="history-popover">
-                            <div class="hp-header">История <div class="cm-red-dot" @click="activeHistoryField = null" style="width: 10px; height: 10px; margin-top: 0;"></div></div>
+                            <div class="hp-header">{{ store.t('history_title', 'ИСТОРИЯ') }} <div class="cm-red-dot" @click="activeHistoryField = null" style="width: 10px; height: 10px; margin-top: 0;"></div></div>
                             <div class="hp-list">
-                                <div v-if="historyData.previous" class="hp-item previous" @click="selectHistoryItem(historyData.previous)"><span class="hp-badge">Предыдущий</span><p>{{ historyData.previous }}</p></div>
+                                <div v-if="historyData.previous" class="hp-item previous" @click="selectHistoryItem(historyData.previous)"><span class="hp-badge">{{ store.t('history_previous', 'Предыдущий') }}</span><p>{{ historyData.previous }}</p></div>
                                 <div v-if="historyData.previous && historyData.others.length > 0" class="hp-divider"></div>
                                 <div v-for="(val, idx) in historyData.others" :key="idx" class="hp-item" @click="selectHistoryItem(val)"><p>{{ val }}</p></div>
-                                <div v-if="!historyData.previous && historyData.others.length === 0" class="hp-empty">История пуста</div>
+                                <div v-if="!historyData.previous && historyData.others.length === 0" class="hp-empty">{{ store.t('history_empty', 'История пуста') }}</div>
                             </div>
                         </div>
                     </div>
@@ -319,14 +340,14 @@ export default {
                     <img src="assets/icons/user_query.svg" width="18"> {{ store.t('role_user', 'Сообщение пользователя') }}
                     <div class="role-actions" style="position: relative;">
                         <img :src="hiddenBlocks.user ? 'assets/icons/close_eye.svg' : 'assets/icons/Eye.svg'" class="action-icon" @click="toggleBlock('user')">
-                        <img src="assets/icons/history.svg" class="action-icon" @click="toggleHistory('user')">
+                        <img src="assets/icons/history.svg" class="action-icon" @click="toggleHistory('user')" :data-tooltip="store.t('tooltip_history', 'История значений')">
                         <div v-if="activeHistoryField === 'user'" class="history-popover">
-                            <div class="hp-header">История <div class="cm-red-dot" @click="activeHistoryField = null" style="width: 10px; height: 10px; margin-top: 0;"></div></div>
+                            <div class="hp-header">{{ store.t('history_title', 'ИСТОРИЯ') }} <div class="cm-red-dot" @click="activeHistoryField = null" style="width: 10px; height: 10px; margin-top: 0;"></div></div>
                             <div class="hp-list">
-                                <div v-if="historyData.previous" class="hp-item previous" @click="selectHistoryItem(historyData.previous)"><span class="hp-badge">Предыдущий</span><p>{{ historyData.previous }}</p></div>
+                                <div v-if="historyData.previous" class="hp-item previous" @click="selectHistoryItem(historyData.previous)"><span class="hp-badge">{{ store.t('history_previous', 'Предыдущий') }}</span><p>{{ historyData.previous }}</p></div>
                                 <div v-if="historyData.previous && historyData.others.length > 0" class="hp-divider"></div>
                                 <div v-for="(val, idx) in historyData.others" :key="idx" class="hp-item" @click="selectHistoryItem(val)"><p>{{ val }}</p></div>
-                                <div v-if="!historyData.previous && historyData.others.length === 0" class="hp-empty">История пуста</div>
+                                <div v-if="!historyData.previous && historyData.others.length === 0" class="hp-empty">{{ store.t('history_empty', 'История пуста') }}</div>
                             </div>
                         </div>
                     </div>
@@ -340,14 +361,14 @@ export default {
                     <img src="assets/icons/think.svg" width="18"> {{ store.t('role_thought', 'Процесс размышления') }}
                     <div class="role-actions" style="position: relative;">
                         <img :src="hiddenBlocks.thought ? 'assets/icons/close_eye.svg' : 'assets/icons/Eye.svg'" class="action-icon" @click="toggleBlock('thought')">
-                        <img src="assets/icons/history.svg" class="action-icon" @click="toggleHistory('thought')">
+                        <img src="assets/icons/history.svg" class="action-icon" @click="toggleHistory('thought')" :data-tooltip="store.t('tooltip_history', 'История значений')">
                         <div v-if="activeHistoryField === 'thought'" class="history-popover">
-                            <div class="hp-header">История <div class="cm-red-dot" @click="activeHistoryField = null" style="width: 10px; height: 10px; margin-top: 0;"></div></div>
+                            <div class="hp-header">{{ store.t('history_title', 'ИСТОРИЯ') }} <div class="cm-red-dot" @click="activeHistoryField = null" style="width: 10px; height: 10px; margin-top: 0;"></div></div>
                             <div class="hp-list">
-                                <div v-if="historyData.previous" class="hp-item previous" @click="selectHistoryItem(historyData.previous)"><span class="hp-badge">Предыдущий</span><p>{{ historyData.previous }}</p></div>
+                                <div v-if="historyData.previous" class="hp-item previous" @click="selectHistoryItem(historyData.previous)"><span class="hp-badge">{{ store.t('history_previous', 'Предыдущий') }}</span><p>{{ historyData.previous }}</p></div>
                                 <div v-if="historyData.previous && historyData.others.length > 0" class="hp-divider"></div>
                                 <div v-for="(val, idx) in historyData.others" :key="idx" class="hp-item" @click="selectHistoryItem(val)"><p>{{ val }}</p></div>
-                                <div v-if="!historyData.previous && historyData.others.length === 0" class="hp-empty">История пуста</div>
+                                <div v-if="!historyData.previous && historyData.others.length === 0" class="hp-empty">{{ store.t('history_empty', 'История пуста') }}</div>
                             </div>
                         </div>
                     </div>
@@ -361,14 +382,14 @@ export default {
                     <img src="assets/icons/LLM_response.svg" width="18"> {{ store.t('role_assistant', 'Ответ LLM') }}
                     <div class="role-actions" style="position: relative;">
                         <img :src="hiddenBlocks.assistant ? 'assets/icons/close_eye.svg' : 'assets/icons/Eye.svg'" class="action-icon" @click="toggleBlock('assistant')">
-                        <img src="assets/icons/history.svg" class="action-icon" @click="toggleHistory('assistant')">
+                        <img src="assets/icons/history.svg" class="action-icon" @click="toggleHistory('assistant')" :data-tooltip="store.t('tooltip_history', 'История значений')">
                         <div v-if="activeHistoryField === 'assistant'" class="history-popover">
-                            <div class="hp-header">История <div class="cm-red-dot" @click="activeHistoryField = null" style="width: 10px; height: 10px; margin-top: 0;"></div></div>
+                            <div class="hp-header">{{ store.t('history_title', 'ИСТОРИЯ') }} <div class="cm-red-dot" @click="activeHistoryField = null" style="width: 10px; height: 10px; margin-top: 0;"></div></div>
                             <div class="hp-list">
-                                <div v-if="historyData.previous" class="hp-item previous" @click="selectHistoryItem(historyData.previous)"><span class="hp-badge">Предыдущий</span><p>{{ historyData.previous }}</p></div>
+                                <div v-if="historyData.previous" class="hp-item previous" @click="selectHistoryItem(historyData.previous)"><span class="hp-badge">{{ store.t('history_previous', 'Предыдущий') }}</span><p>{{ historyData.previous }}</p></div>
                                 <div v-if="historyData.previous && historyData.others.length > 0" class="hp-divider"></div>
                                 <div v-for="(val, idx) in historyData.others" :key="idx" class="hp-item" @click="selectHistoryItem(val)"><p>{{ val }}</p></div>
-                                <div v-if="!historyData.previous && historyData.others.length === 0" class="hp-empty">История пуста</div>
+                                <div v-if="!historyData.previous && historyData.others.length === 0" class="hp-empty">{{ store.t('history_empty', 'История пуста') }}</div>
                             </div>
                         </div>
                     </div>
