@@ -171,5 +171,8 @@
     "tooltip_split_dataset": "Разделить датасет на Train и Validation",
     "tooltip_show_block": "Развернуть поле",
     "tooltip_hide_block": "Свернуть поле",
-    "tooltip_hf_push": "Выгрузить датасет на Hugging Face"
+    "tooltip_hf_push": "Выгрузить датасет на Hugging Face",
+	"confirm_delete_project_title": "Удаление проекта",
+    "confirm_delete_project_msg": "Вы уверены, что хотите удалить проект \"{name}\" и все его датасеты? Это действие необратимо.",
+    "alert_delete_failed": "Не удалось удалить проект: "
 }

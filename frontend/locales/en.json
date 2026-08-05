@@ -171,5 +171,8 @@
     "tooltip_split_dataset": "Split dataset into Train and Validation",
     "tooltip_show_block": "Expand field",
     "tooltip_hide_block": "Collapse field",
-    "tooltip_hf_push": "Push dataset to Hugging Face"
+    "tooltip_hf_push": "Push dataset to Hugging Face",
+	"confirm_delete_project_title": "Delete Project",
+    "confirm_delete_project_msg": "Are you sure you want to delete project \"{name}\" and all its datasets? This action is irreversible.",
+    "alert_delete_failed": "Failed to delete project: "
 }

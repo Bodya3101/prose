@@ -8,12 +8,12 @@
     <strong>A lightweight, ergonomic visual JSONL dataset editor for AI model fine-tuning and alignment</strong>
   </p>
 
-  <img src="https://readme-typing-svg.demolab.com?font=JetBrains+Mono&weight=600&size=20&duration=3000&pause=1000&color=CB3153&center=true&vCenter=true&width=550&lines=Visual+LLM+Dataset+Editor;ChatML+%2B+ShareGPT+%2B+Alpaca+Support;1-Click+Format+Converter;AI+Batch+Dataset+Generator;Modular+Python+Plugin+Architecture" alt="Typing SVG" />
+  <img src="https://readme-typing-svg.demolab.com?font=JetBrains+Mono&weight=600&size=20&duration=3000&pause=1000&color=CB3153&center=true&vCenter=true&width=550&lines=Visual+LLM+Dataset+Editor;ChatML+%2B+ShareGPT+%2B+Alpaca+Support;Telegram+Export+Converter;Dataset+Audit+%2B+Train%2FVal+Splitter;Real-Time+Multi-Tokenizer+Engine" alt="Typing SVG" />
 
   <br><br>
 
   <a href="https://github.com/Bodya3101/prose/releases/latest">
-    <img src="https://img.shields.io/badge/Release-v1.0.0-CB3153?style=for-the-badge&logo=github&logoColor=white" alt="Release"/>
+    <img src="https://img.shields.io/badge/Release-v1.0.3-CB3153?style=for-the-badge&logo=github&logoColor=white" alt="Release"/>
   </a>
   <a href="https://t.me/BodyaAckerman">
     <img src="https://img.shields.io/badge/Telegram-Contact-26A5E4?style=for-the-badge&logo=telegram&logoColor=white" alt="Telegram"/>
@@ -63,7 +63,13 @@ Prose natively handles all major fine-tuning formats and lets you convert betwee
 
 * **Ergonomic Card View**: Edit prompts and responses in distinct, color-coded blocks instead of wall-of-text JSON.
 * **1-Click Format Conversion**: Convert entire dataset files on disk between ChatML, ShareGPT, Alpaca, and Standard format instantly.
+* **Telegram Export Converter**: Convert Telegram Desktop chat exports (`result.json`) into structured training pairs with participant role mapping and automatic message grouping.
+* **Automated Dataset Audit**: Detect empty fields, corrupted lines, and duplicate prompts across your file. Review flagged entries line by line and bulk-delete junk data.
+* **Train / Validation Dataset Splitter**: Split any dataset into Train and Validation subsets with a customizable ratio slider (80/20) - no manual Python scripts required.
+* **Real-Time Tokenizer Engine**: Live character and token estimation supporting top 15 AI model tokenizers (Llama 3, Qwen 2.5, DeepSeek R1, GPT-4o, Gemma 2, etc.) + Plugin API for custom encoders.
 * **AI Dataset Batch Generator**: Auto-generate dataset samples using OpenRouter API directly inside the editor.
+* **Custom Hotkeys & Shortcuts**: Fully configurable key bindings with key-cap visualization, unbind options, direct entry jump, and 1-click favorites navigation (Ctrl+* and Ctrl+Numpad 1-9).
+* **In-Editor Project Settings**: Change tokenizers, switch dataset schemas, adjust global system prompts, or swap project logos without leaving the editor view.
 * **O(1) Seek Performance**: Prose doesn't load whole multi-gigabyte files into RAM. It calculates byte-offset bookmarks, meaning jumping to entry #100,000 takes 0.001 seconds.
 * **HuggingFace Integration**: Upload processed datasets directly to HuggingFace Hub in one click.
 * **Zero Trust Security**: API keys are encrypted in OS Keyring, and file saves are atomic (written to `.tmp` first) so power outages never corrupt your work.
@@ -72,7 +78,7 @@ Prose natively handles all major fine-tuning formats and lets you convert betwee
 
 ### <img src="https://api.iconify.design/ph:puzzle-piece-duotone.svg?color=%23CB3153" width="22" align="top"> Prose as a Platform: Plugins & Extensibility
 
-Prose was designed as an open foundation. It is not limited to text datasets: you can write custom Python plugins to turn Prose into an image dataset editor, audio dataset annotator, or integrate custom local AI backends like Ollama.
+Prose was designed as an open foundation. It is not limited to text datasets: you can write custom Python plugins to turn Prose into an image dataset editor, audio dataset annotator, custom tokenizer provider, or integrate local AI backends like Ollama.
 
 <div align="center">
   <img src="forgithub/demo_settings_3d_right.gif" width="70%" alt="Settings, Languages and Plugins" />
@@ -164,7 +170,13 @@ Prose нативно поддерживает все ключевые схемы
 
 * **Наглядный карточный редактор**: Редактирование промптов и ответов в сдержанных закругленных блоках вместо мешанины из JSON кода.
 * **Конвертация форматов в 1 клик**: Изменяйте разметку датасета прямо на диске между ChatML, ShareGPT, Alpaca и Стандартным форматом.
+* **Конвертер экспорта Telegram**: Превращает логи переписок из Telegram Desktop (`result.json`) в обучающий датасет с распределением ролей и автоматическим объединением подряд идущих сообщений.
+* **Автоматический аудит датасета**: Поиск пустых реплик, битых строк и дубликатов вопросов. Сканирование и удаление найденного мусора за 1 клик с ручным выбором галочками.
+* **Сплиттер Train / Validation**: Быстрое разделение любого датасета на обучающую и валидационную выборку (80/20) с удобным ползунком процента - без вызова Питона вручную.
+* **Движок токенизаторов в реальном времени**: Подсчет символов и токенов под словари 15 популярных моделей (Llama 3, Qwen 2.5, DeepSeek R1, GPT-4o и др.) с возможностью подключения своих токенизаторов через плагины.
 * **ИИ-Генератор датасетов**: Автоматическое расширение и генерация пачек данных прямо из редактора через OpenRouter API.
+* **Настройка горячих клавиш**: Полное переназначение клавиш с кастомной визуализацией колпачков, возможностью отвязки, быстрым переходом к номерам строк и избранным записям (Ctrl+* и Ctrl+Numpad 1-9).
+* **Быстрые настройки проекта в редакторе**: Смена токенизатора, схемы разметки, логотипа и единого системного промпта прямо из шапки редактора.
 * **Мгновенное чтение файлов O(1)**: Prose не загружает гигабайтные файлы целиком в оперативную память. Он расставляет байтовые закладки, поэтому переход на 100 000-ю запись занимает 0.001 секунды.
 * **Интеграция с HuggingFace**: Выгрузка готовых наборов данных прямо в репозитории HF Datasets.
 * **Строгая безопасность (Zero Trust)**: Ключи шифруются в реестре ОС через хранилище Keyring, а сохранение идет атомарно, так что отключение света не сотрет вашу работу.
@@ -173,7 +185,7 @@ Prose нативно поддерживает все ключевые схемы
 
 ### <img src="https://api.iconify.design/ph:puzzle-piece-duotone.svg?color=%23CB3153" width="22" align="top"> Prose как база: Плагины и Расширяемость
 
-Prose задумывался не просто как редактор текста, а как фундаментальный каркас для ваших собственных инструментов. Вы можете написать свой плагин на Python и превратить Prose в редактор датасетов изображений, разметку аудиотегов или подключить локальную нейросеть через Ollama.
+Prose задумывался не просто как редактор текста, а как фундаментальный каркас для ваших собственных инструментов. Вы можете написать свой плагин на Python и превратить Prose в редактор датасетов изображений, разметку аудиотегов, свой кастомный токенизатор или подключить локальную нейросеть через Ollama.
 
 <br>
 

@@ -171,5 +171,8 @@
     "tooltip_split_dataset": "将数据集拆分为 Train 和 Validation",
     "tooltip_show_block": "展开字段",
     "tooltip_hide_block": "折叠字段",
-    "tooltip_hf_push": "推送数据集到 Hugging Face"
+    "tooltip_hf_push": "推送数据集到 Hugging Face",
+	"confirm_delete_project_title": "删除项目",
+    "confirm_delete_project_msg": "您确定要删除项目“{name}”及其所有数据集吗？此操作无法撤销。",
+    "alert_delete_failed": "无法删除项目: "
 }
