@@ -4,7 +4,7 @@ import shutil
 import zipfile
 import subprocess
 
-APP_VERSION = "1.0.1"
+APP_VERSION = "1.0.2"
 
 def run_cmd(cmd):
     print(f" Executing: {cmd}")
