@@ -1,6 +1,5 @@
 const { reactive } = Vue;
 
-// Глобальный объект для работы в file:// без CORS
 window.installer_store = reactive({
     currentStep: 1,
     currentLang: 'ru',

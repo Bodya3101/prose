@@ -30,3 +30,8 @@ config/settings.json
 Thumbs.db
 .vscode/
 .idea/
+
+# Игнорировать любые экспорты Telegram
+ChatExport_*
+result.json
+test.py

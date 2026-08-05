@@ -809,6 +809,8 @@ select.cm-hex-input-box option {
 /* Кастомные подсказки */
 [data-tooltip] {
     position: relative;
+    display: inline-flex; 
+    align-items: center;
 }
 [data-tooltip]:hover::after {
     content: attr(data-tooltip);
@@ -832,7 +834,8 @@ select.cm-hex-input-box option {
 /* ЗАЩИТА ОТ ОБРЕЗАНИЯ: подсказки кнопок у правого края выравниваются по правому краю кнопки */
 .topbar-actions [data-tooltip]:hover::after,
 .projects-header [data-tooltip]:hover::after,
-.role-actions [data-tooltip]:hover::after {
+.role-actions [data-tooltip]:hover::after,
+.dataset-stats [data-tooltip]:hover::after {
     left: auto;
     right: 0;
     transform: none;
@@ -844,4 +847,124 @@ select.cm-hex-input-box option {
     font-style: italic;
     color: var(--text-main);
     letter-spacing: 2px;
+}
+.token-counter-badge {
+    background: #161616;
+    border: 1px solid var(--border-main);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #A0A0A0;
+    user-select: none;
+    margin-right: 5px;
+    font-family: 'JetBrains Mono', monospace;
+}
+.token-counter-badge .tc-chars {
+    color: var(--text-main);
+    font-weight: bold;
+}
+.token-counter-badge .tc-tokens {
+    color: #4D986D; /* Зеленый акцент Prose */
+    font-weight: bold;
+}
+.token-counter-badge .tc-divider {
+    color: var(--border-main);
+}
+
+/* --- 1. ВЫРАВНИВАНИЕ ТУЛТИПОВ В НАСТРОЙКАХ (Защита от обрезания) --- */
+.settings-item-row [data-tooltip]:hover::after {
+    left: auto;
+    right: 0;
+    transform: none;
+}
+
+/* --- 2. ОБНОВЛЕННЫЕ СТИЛИ И АНИМАЦИЯ КЛАВИШ (ЕДИНЫЙ ЦВЕТ ДЛЯ ВСЕХ) --- */
+.key-cap {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(180deg, #2D2D2D 0%, #1A1A1A 100%);
+    border: 1px solid #444;
+    border-bottom: 3px solid #111;
+    border-radius: 6px;
+    padding: 4px 8px;
+    min-width: 34px;
+    height: 32px;
+    color: var(--text-main);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: bold;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    user-select: none;
+    cursor: pointer;
+    transition: transform 0.1s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.key-cap:active {
+    transform: translateY(2px);
+    border-bottom-width: 1px;
+}
+
+/* Форма Enter (широкая, но в едином цвете со всеми) */
+.key-cap.enter {
+    min-width: 58px;
+}
+
+/* Режим записи новой клавиши */
+.key-cap.recording {
+    border-color: #CB3153;
+    box-shadow: 0 0 10px rgba(203, 49, 83, 0.8);
+    animation: keyPulse 1s infinite alternate;
+    color: #CB3153;
+}
+
+.key-cap.disabled {
+    opacity: 0.3;
+    border-color: #333;
+    color: #555;
+    box-shadow: none;
+    cursor: default;
+}
+
+/* --- 3. ВРЕМЕННАЯ РОЗОВАЯ ПУЛЬСАЦИЯ ИЗБРАННОГО (#CB3153) --- */
+@keyframes favFlash {
+    0% { transform: scale(1); filter: drop-shadow(0 0 2px #CB3153); }
+    50% { transform: scale(1.35); filter: drop-shadow(0 0 10px #CB3153) brightness(1.2); }
+    100% { transform: scale(1); filter: drop-shadow(0 0 3px #CB3153); }
+}
+.fav-flash {
+    animation: favFlash 0.6s cubic-bezier(0.25, 1, 0.5, 1);
+}
+/* --- СТИЛЬ КЛАВИШИ ENTER И МОДИФИКАТОРОВ --- */
+.key-cap.enter {
+    min-width: 58px;
+    background: linear-gradient(180deg, #3A2D2D 0%, #221A1A 100%);
+    border-color: #553333;
+    color: #FFAAAA;
+}
+
+.key-cap.modifier {
+    background: linear-gradient(180deg, #1A2733 0%, #0F1A24 100%);
+    border-color: #2B4863;
+    color: #52A8E8;
+}
+
+/* --- 1. УСТРАНЕНИЕ БЕЛОГО КВАДРАТА НА СТЫКЕ СКРОЛЛБАРОВ --- */
+::-webkit-scrollbar-corner {
+    background: transparent !important;
+}
+
+/* --- 2. ФОРМА КЛАВИШИ ENTER (НЕЙТРАЛЬНЫЙ ТЕМНЫЙ СТИЛЬ) --- */
+.key-cap.enter {
+    min-width: 60px;
+    height: 34px;
+    background: linear-gradient(180deg, #333333 0%, #1F1F1F 100%);
+    border-color: #4B4B4B;
+    border-bottom: 3px solid #111;
+    color: var(--text-main);
+    border-radius: 6px;
+    font-size: 11px;
 }

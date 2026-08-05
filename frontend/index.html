@@ -18,6 +18,18 @@
                     <img src="assets/images/logo_header.png" alt="Prose" style="max-height: 28px; width: auto; object-fit: contain;">
                 </div>
                 <div class="topbar-actions">
+                    <!-- 📊 СЧЕТЧИК СИМВОЛОВ И ТОКЕНОВ В ШАПКЕ -->
+                    <div v-if="store.currentView === 'editor'" class="token-counter-badge" :data-tooltip="store.t('tooltip_active_tokenizer', 'Active Tokenizer:') + ' ' + activeTokenizerName">
+                        <span class="tc-chars">{{ currentEntryCharCount }} {{ store.t('chars_unit', 'chars') }}</span>
+                        <span class="tc-divider">|</span>
+                        <span class="tc-tokens">~{{ currentEntryTokenCount }} {{ store.t('tokens_unit', 'tok.') }} [{{ activeTokenizerTag }}]</span>
+                    </div>
+
+                    <!-- ⚙️ ИКОНКА НАСТРОЕК ПРОЕКТА (Только в режиме Редактора) -->
+                    <button v-if="store.currentView === 'editor'" class="topbar-icon" @click="openProjectSettings" :data-tooltip="store.t('tooltip_project_settings', 'Project Settings')">
+                        <img src="assets/icons/project_settings.svg">
+                    </button>
+
                     <button class="topbar-icon" @click="openAbout" :data-tooltip="store.t('tooltip_about', 'About')">
                         <img src="assets/icons/about.svg">
                     </button>
@@ -43,18 +55,21 @@
             </div>
         </div>
 
-        <!-- ГЛОБАЛЬНОЕ ЦЕНТРИРОВАННОЕ ДИАЛОГОВОЕ ОКНО -->
+        <!-- 🌐 ГЛОБАЛЬНЫЙ ОВЕРЛЕЙ ДЛЯ МОДАЛЬНЫХ ОКНО (НАСТРОЙКИ ПРОЕКТА И ПЛАГИНЫ) -->
+        <component v-if="store.active_overlay" :is="store.active_overlay" @close="store.active_overlay = null"></component>
+
+        <!-- ГЛОБАЛЬНОЕ ДИАЛОГОВОЕ ОКНО -->
         <div v-if="store.dialog" class="or-warning-overlay" style="z-index: 10000;" @click.self="store.closeDialog(false)">
             <div class="custom-dialog-modal">
                 <div class="cm-header">
-                    {{ store.dialog.title }}
+                    {{ store.dialog ? store.dialog.title : '' }}
                     <div class="cm-red-dot" @click="store.closeDialog(false)"></div>
                 </div>
                 <div class="custom-dialog-body">
-                    {{ store.dialog.message }}
+                    {{ store.dialog ? store.dialog.message : '' }}
                 </div>
                 <div class="custom-dialog-footer">
-                    <button v-if="store.dialog.type === 'confirm'" class="cp-default-btn" @click="store.closeDialog(false)" style="padding: 8px 16px;">
+                    <button v-if="store.dialog && store.dialog.type === 'confirm'" class="cp-default-btn" @click="store.closeDialog(false)" style="padding: 8px 16px;">
                         {{ store.t('btn_cancel', 'Cancel') }}
                     </button>
                     <button class="btn-primary" @click="store.closeDialog(true)" style="padding: 8px 20px;">

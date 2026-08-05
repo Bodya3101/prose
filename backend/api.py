@@ -57,7 +57,6 @@ class FormatAdapterManager:
             return canonical_data
 
     def _register_builtins(self):
-        # 1. STANDARD
         self.register_adapter(
             "standard", "Standard JSONL (system / user / assistant)",
             lambda j: {
@@ -76,7 +75,6 @@ class FormatAdapterManager:
             }
         )
 
-        # 2. CHATML
         def chatml_to_canonical(j):
             msgs = j.get("messages", [])
             sys_val, user_val, thought_val, asst_val = "", "", "", ""
@@ -108,7 +106,6 @@ class FormatAdapterManager:
 
         self.register_adapter("chatml", "ChatML (OpenAI / HuggingFace)", chatml_to_canonical, chatml_from_canonical)
 
-        # 3. SHAREGPT
         def sharegpt_to_canonical(j):
             convs = j.get("conversations", [])
             sys_val = str(j.get("system", ""))
@@ -134,7 +131,6 @@ class FormatAdapterManager:
 
         self.register_adapter("sharegpt", "ShareGPT (Conversations)", sharegpt_to_canonical, sharegpt_from_canonical)
 
-        # 4. ALPACA
         def alpaca_to_canonical(j):
             sys_val = str(j.get("system", ""))
             inst = str(j.get("instruction", ""))
@@ -197,7 +193,6 @@ class DesktopApi:
 
     def get_locale(self, lang_code: str) -> dict:
         """Загружает язык с поддержкой базового словаря и плагинов"""
-        # Гарантируем корректный язык (ru или en)
         target_lang = lang_code.lower() if lang_code in ["ru", "en"] else "en"
         base_path = self._get_resource_path(os.path.join('frontend', 'locales', f'{target_lang}.json'))
         
@@ -209,7 +204,6 @@ class DesktopApi:
             except Exception as e:
                 logging.error(f"Error loading base locale {base_path}: {e}")
 
-        # Накладываем переводы плагинов
         plugins_dir = os.path.join(self.root_dir, 'plugins')
         if os.path.exists(plugins_dir):
             for folder in os.listdir(plugins_dir):
@@ -282,7 +276,7 @@ class DesktopApi:
         except Exception as e:
             return {"error": str(e)}
 
-    def create_project(self, name: str, desc: str, hex_color: str, use_single_prompt: bool, use_thinking: bool, logo_base64: str, datasets: list, dataset_format: str = "standard") -> dict:
+    def create_project(self, name: str, desc: str, hex_color: str, use_single_prompt: bool, use_thinking: bool, logo_base64: str, datasets: list, dataset_format: str = "standard", tokenizer_preset: str = "llama3") -> dict:
         name = str(name or "").strip()[:50]
         desc = str(desc or "").strip()[:100]
         hex_color = str(hex_color or "")
@@ -306,24 +300,30 @@ class DesktopApi:
                 if not dataset_filename.endswith('.jsonl'):
                     dataset_filename += ".jsonl"
                 
-                dest_path = os.path.join(self.datasets_dir, dataset_filename)
+                dest_path = os.path.abspath(os.path.join(self.datasets_dir, dataset_filename))
                 
                 if source_filepath and os.path.exists(source_filepath):
-                    shutil.copy2(source_filepath, dest_path)
+                    abs_source = os.path.abspath(source_filepath)
+                    if abs_source != dest_path:
+                        shutil.copy2(abs_source, dest_path)
                 else:
-                    open(dest_path, 'a').close()
+                    if not os.path.exists(dest_path):
+                        open(dest_path, 'a').close()
                 
                 project_datasets.append(dataset_filename)
 
             if not project_datasets:
+                default_file = os.path.join(self.datasets_dir, "dataset_default.jsonl")
                 project_datasets.append("dataset_default.jsonl")
-                open(os.path.join(self.datasets_dir, "dataset_default.jsonl"), 'a').close()
+                if not os.path.exists(default_file):
+                    open(default_file, 'a').close()
 
             new_project = {
                 "id": project_id, "name": name, "description": desc,
                 "color": hex_color, "logo_base64": logo_base64,
                 "dataset_files": project_datasets, "active_dataset": project_datasets[0],
                 "dataset_format": dataset_format or "standard",
+                "tokenizer_preset": tokenizer_preset or "llama3",
                 "use_single_prompt": use_single_prompt, "use_thinking": use_thinking,
                 "global_system_prompt": ""
             }
@@ -509,6 +509,152 @@ class DesktopApi:
         if not file_path.endswith('.jsonl'): return {"error": "Файл должен быть в формате .jsonl"}
         return {"success": True, "path": file_path, "name": os.path.basename(file_path)}
 
+    def _extract_telegram_text(self, raw_text: Any) -> str:
+        """
+        Безопасно извлекает и объединяет текст из структуры Telegram JSON.
+        Поддерживает как простые строки, так и массивы форматирования text_entities.
+        """
+        if isinstance(raw_text, str):
+            return raw_text.strip()
+        elif isinstance(raw_text, list):
+            parts = []
+            for item in raw_text:
+                if isinstance(item, str):
+                    parts.append(item)
+                elif isinstance(item, dict) and "text" in item:
+                    parts.append(str(item.get("text", "")))
+            return "".join(parts).strip()
+        return ""
+
+    def select_telegram_export_file(self) -> dict:
+        """
+        Открывает нативный диалог выбора файла result.json от Telegram Desktop,
+        проверяет целостность и возвращает список участников диалога.
+        """
+        file_types = ('JSON Files (*.json)', 'All files (*.*)')
+        result = webview.windows[0].create_file_dialog(webview.OPEN_DIALOG, allow_multiple=False, file_types=file_types)
+        if not result:
+            return {"success": False}
+
+        file_path = result[0]
+        if not os.path.exists(file_path):
+            return {"success": False, "error": "Файл не найден на диске."}
+
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+
+            messages = data.get("messages", [])
+            if not isinstance(messages, list):
+                return {"success": False, "error": "Некорректная структура Telegram JSON (отсутствует массив messages)."}
+
+            senders = set()
+            msg_count = 0
+            for m in messages:
+                if isinstance(m, dict) and m.get("type") == "message":
+                    sender = m.get("from")
+                    if sender and isinstance(sender, str):
+                        senders.add(sender)
+                        msg_count += 1
+
+            if not senders:
+                return {"success": False, "error": "В файле экспорта не найдено текстовых сообщений."}
+
+            chat_name = data.get("name", "Telegram_Chat")
+            return {
+                "success": True,
+                "path": file_path,
+                "participants": list(senders),
+                "total_messages": msg_count,
+                "chat_name": chat_name
+            }
+        except Exception as e:
+            logging.error(f"Error parsing Telegram export: {e}")
+            return {"success": False, "error": str(e)}
+
+    def convert_telegram_export(self, source_path: str, user_sender: str, assistant_sender: str, output_filename: str, dataset_format: str = "standard", system_prompt: str = "") -> dict:
+        """
+        Конвертирует переписку из result.json в датасет формата Prose.
+        Принимает кастомный системный промпт system_prompt для создаваемых строк.
+        """
+        if not source_path or not os.path.exists(source_path):
+            return {"error": "Исходный файл экспорта не найден."}
+
+        if user_sender == assistant_sender:
+            return {"error": "Участники User и Assistant должны различаться."}
+
+        clean_filename = re.sub(r'[\\/*?:"<>|]', "", str(output_filename or "dataset_telegram")).strip()
+        if not clean_filename.endswith('.jsonl'):
+            clean_filename += ".jsonl"
+
+        dest_path = os.path.abspath(os.path.join(self.datasets_dir, clean_filename))
+        if not dest_path.startswith(os.path.abspath(self.datasets_dir)):
+            return {"error": "Path Traversal заблокирован."}
+
+        try:
+            with open(source_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+
+            messages = data.get("messages", [])
+            if not isinstance(messages, list):
+                return {"error": "Некорректный массив сообщений."}
+
+            grouped_turns = []
+            for m in messages:
+                if not isinstance(m, dict) or m.get("type") != "message":
+                    continue
+                sender = m.get("from")
+                if sender not in [user_sender, assistant_sender]:
+                    continue
+
+                text = self._extract_telegram_text(m.get("text"))
+                if not text:
+                    continue
+
+                if grouped_turns and grouped_turns[-1]["sender"] == sender:
+                    grouped_turns[-1]["text"] += "\n" + text
+                else:
+                    grouped_turns.append({"sender": sender, "text": text})
+
+            clean_sys_prompt = str(system_prompt or "").strip()
+            entries = []
+            i = 0
+            while i < len(grouped_turns):
+                curr = grouped_turns[i]
+                if curr["sender"] == user_sender:
+                    user_text = curr["text"]
+                    asst_text = ""
+                    if i + 1 < len(grouped_turns) and grouped_turns[i + 1]["sender"] == assistant_sender:
+                        asst_text = grouped_turns[i + 1]["text"]
+                        i += 1
+                    
+                    canonical = {"system": clean_sys_prompt, "user": user_text, "thought": "", "assistant": asst_text}
+                    formatted = self.format_manager.from_canonical(canonical, dataset_format)
+                    entries.append(formatted)
+                i += 1
+
+            if not entries:
+                return {"error": "Не удалось создать ни одной пары диалога из выбранных участников."}
+
+            temp_path = dest_path + ".tmp"
+            with open(temp_path, 'w', encoding='utf-8') as out_f:
+                for entry in entries:
+                    out_f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
+            os.replace(temp_path, dest_path)
+
+            return {
+                "success": True,
+                "filename": clean_filename,
+                "filepath": dest_path,
+                "total_entries": len(entries)
+            }
+        except Exception as e:
+            logging.error(f"Telegram conversion error: {e}")
+            if 'temp_path' in locals() and os.path.exists(temp_path):
+                os.remove(temp_path)
+            return {"error": str(e)}
+
     def save_hf_token(self, token: str) -> bool:
         try:
             if not isinstance(token, str) or len(token) > 200: raise ValueError("Invalid format.")
@@ -545,10 +691,141 @@ class DesktopApi:
             return {"success": True, "url": f"https://huggingface.co/datasets/{repo_id}"}
         except Exception as e: return {"success": False, "error": str(e)}
 
+    def split_dataset(self, filename: str, train_ratio: float = 0.8) -> dict:
+        """
+        Разделяет датасет на train (например 80%) и val (20%) без повреждения оригинала.
+        """
+        safe_path = os.path.abspath(os.path.join(self.datasets_dir, filename))
+        if not safe_path.startswith(os.path.abspath(self.datasets_dir)) or not os.path.exists(safe_path):
+            return {"error": "Файл не найден."}
+
+        try:
+            with open(safe_path, 'r', encoding='utf-8') as f:
+                lines = [line for line in f if line.strip()]
+
+            if len(lines) < 2:
+                return {"error": "Слишком мало записей для разделения (минимум 2)."}
+
+            import random
+            shuffled = lines.copy()
+            random.seed(42)  # Воспроизводимое распределение
+            random.shuffle(shuffled)
+
+            split_idx = max(1, int(len(shuffled) * train_ratio))
+            train_lines = shuffled[:split_idx]
+            val_lines = shuffled[split_idx:]
+
+            base_name = filename[:-6] if filename.endswith('.jsonl') else filename
+            train_filename = f"{base_name}_train.jsonl"
+            val_filename = f"{base_name}_val.jsonl"
+
+            train_path = os.path.join(self.datasets_dir, train_filename)
+            val_path = os.path.join(self.datasets_dir, val_filename)
+
+            with open(train_path + ".tmp", 'w', encoding='utf-8') as f:
+                f.writelines(train_lines)
+            os.replace(train_path + ".tmp", train_path)
+
+            with open(val_path + ".tmp", 'w', encoding='utf-8') as f:
+                f.writelines(val_lines)
+            os.replace(val_path + ".tmp", val_path)
+
+            return {
+                "success": True,
+                "train_file": train_filename,
+                "train_count": len(train_lines),
+                "val_file": val_filename,
+                "val_count": len(val_lines)
+            }
+        except Exception as e:
+            logging.error(f"Error splitting dataset: {e}")
+            return {"error": str(e)}
+
+    def audit_dataset(self, filename: str, format_id: str = "standard") -> dict:
+        """
+        Сканирует датасет на пустые реплики и дубликаты.
+        Возвращает список аномалий для последующего ручного подтверждения пользователем.
+        """
+        safe_path = os.path.abspath(os.path.join(self.datasets_dir, filename))
+        if not safe_path.startswith(os.path.abspath(self.datasets_dir)) or not os.path.exists(safe_path):
+            return {"error": "Файл не найден."}
+
+        issues = []
+        seen_user_prompts = {}
+
+        try:
+            with open(safe_path, 'rb') as f:
+                for idx, line in enumerate(f):
+                    line_str = line.decode('utf-8').strip()
+                    if not line_str:
+                        continue
+                    try:
+                        raw_json = json.loads(line_str)
+                        canonical = self.format_manager.to_canonical(raw_json, format_id)
+                        user_text = canonical.get("user", "").strip()
+                        asst_text = canonical.get("assistant", "").strip()
+
+                        if not user_text or not asst_text:
+                            issues.append({
+                                "index": idx,
+                                "type": "empty",
+                                "user_preview": user_text[:60] if user_text else "[Пусто]",
+                                "asst_preview": asst_text[:60] if asst_text else "[Пусто]"
+                            })
+
+                        if user_text:
+                            if user_text in seen_user_prompts:
+                                issues.append({
+                                    "index": idx,
+                                    "type": "duplicate",
+                                    "original_index": seen_user_prompts[user_text],
+                                    "user_preview": user_text[:60],
+                                    "asst_preview": asst_text[:60]
+                                })
+                            else:
+                                seen_user_prompts[user_text] = idx
+
+                    except Exception:
+                        issues.append({
+                            "index": idx,
+                            "type": "corrupted",
+                            "user_preview": "Невалидный JSON",
+                            "asst_preview": ""
+                        })
+
+            return {"success": True, "total_scanned": idx + 1 if 'idx' in locals() else 0, "issues": issues}
+        except Exception as e:
+            logging.error(f"Audit error: {e}")
+            return {"error": str(e)}
+
+    def delete_dataset_entries_bulk(self, filename: str, indices_to_delete: list) -> dict:
+        """
+        Атомарно удаляет выбранный массив индексов строк из датасета за 1 проход.
+        """
+        safe_path = os.path.abspath(os.path.join(self.datasets_dir, filename))
+        if not safe_path.startswith(os.path.abspath(self.datasets_dir)) or not os.path.exists(safe_path):
+            return {"error": "Файл не найден."}
+
+        delete_set = set(indices_to_delete)
+        temp_path = safe_path + ".tmp"
+
+        try:
+            with open(safe_path, 'r', encoding='utf-8') as src, open(temp_path, 'w', encoding='utf-8') as dst:
+                for idx, line in enumerate(src):
+                    if idx not in delete_set:
+                        dst.write(line)
+
+            os.replace(temp_path, safe_path)
+            self._reindex_current_file()
+            return {"success": True, "deleted_count": len(delete_set)}
+        except Exception as e:
+            if os.path.exists(temp_path): os.remove(temp_path)
+            return {"error": str(e)}
+
     def get_about_info(self) -> dict:
         about_path = os.path.join(self.root_dir, 'config', 'about.json')
         default_about = {
-            "version": "1.0.1", "github_username": "Bodya3101",
+            "version": "1.0.3", "github_username": "Bodya3101",
             "github_profile_url": "https://github.com/Bodya3101",
             "github_repo_url": "https://github.com/Bodya3101/prose",
             "logo_placeholder_path": "assets/images/logo_about.png"

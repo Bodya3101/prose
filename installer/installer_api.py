@@ -48,7 +48,6 @@ class InstallerEngine:
             with zipfile.ZipFile(zip_payload_path, 'r') as zip_ref:
                 members = zip_ref.infolist()
                 
-                # ЖЕСТКАЯ ПРОВЕРКА: Архив ОБЯЗАН содержать Prose.exe!
                 filenames_lower = [m.filename.lower() for m in members]
                 if not any('prose.exe' in f for f in filenames_lower):
                     logging.error(f"ОШИБКА: Архив {zip_payload_path} не содержит Prose.exe! Распаковка отменена.")
@@ -63,7 +62,6 @@ class InstallerEngine:
                     if not target_file_path.startswith(dest_dir_abs):
                         raise SecurityError(f"Zip Slip attempt blocked: {member.filename}")
 
-                    # Не перезаписываем пользовательские данные при обновлении
                     is_user_data = member.filename.startswith('config/') or member.filename.startswith('datasets/')
                     if is_user_data and os.path.exists(target_file_path):
                         continue

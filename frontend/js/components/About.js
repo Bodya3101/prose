@@ -16,7 +16,7 @@ export default {
             this.aboutInfo = await window.pywebview.api.get_about_info();
         } else {
             this.aboutInfo = {
-                version: "1.0",
+                version: "1.0.3",
                 github_username: "Bodya3101",
                 github_profile_url: "https://github.com/Bodya3101",
                 github_repo_url: "https://github.com/Bodya3101/prose",

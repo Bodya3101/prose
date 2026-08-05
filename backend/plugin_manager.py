@@ -15,7 +15,6 @@ class PluginManager:
         if not os.path.exists(self.plugins_dir):
             return
 
-        # Получаем список активных плагинов из конфига
         active_list = self.api.settings_manager.settings.get("active_plugins", [])
 
         for folder in os.listdir(self.plugins_dir):
@@ -31,7 +30,6 @@ class PluginManager:
                 with open(about_file, 'r', encoding='utf-8') as f:
                     meta = json.load(f)
 
-                # ИНИЦИАЛИЗИРУЕМ БЭКЕНД ТОЛЬКО ЕСЛИ ПЛАГИН ВКЛЮЧЕН В НАСТРОЙКАХ
                 if meta['id'] in active_list:
                     backend_py = os.path.join(plugin_path, 'backend', 'plugin.py')
                     if os.path.exists(backend_py):

@@ -6,7 +6,6 @@
 var Vue = (function (exports) {
   'use strict';
 
-  // @__NO_SIDE_EFFECTS__
   function makeMap(str) {
     const map = /* @__PURE__ */ Object.create(null);
     for (const key of str.split(",")) map[key] = 1;
@@ -50,7 +49,6 @@ var Vue = (function (exports) {
   const isPlainObject = (val) => toTypeString(val) === "[object Object]";
   const isIntegerKey = (key) => isString(key) && key !== "NaN" && key[0] !== "-" && "" + parseInt(key, 10) === key;
   const isReservedProp = /* @__PURE__ */ makeMap(
-    // the leading comma is intentional so empty string "" is also included
     ",key,ref,ref_for,ref_key,onVnodeBeforeMount,onVnodeMounted,onVnodeBeforeUpdate,onVnodeUpdated,onVnodeBeforeUnmount,onVnodeUnmounted"
   );
   const isBuiltInDirective = /* @__PURE__ */ makeMap(
@@ -380,8 +378,6 @@ var Vue = (function (exports) {
   const stringifySymbol = (v, i = "") => {
     var _a;
     return (
-      // Symbol.description in es2019+ so we need to cast here to pass
-      // the lib: es2016 check
       isSymbol(v) ? `Symbol(${(_a = v.description) != null ? _a : i})` : v
     );
   };
@@ -410,7 +406,6 @@ var Vue = (function (exports) {
 
   let activeEffectScope;
   class EffectScope {
-    // TODO isolatedDeclarations "__v_skip"
     constructor(detached = false) {
       this.detached = detached;
       /**
@@ -904,7 +899,6 @@ var Vue = (function (exports) {
     }
   }
   class Dep {
-    // TODO isolatedDeclarations "__v_skip"
     constructor(computed) {
       this.computed = computed;
       this.version = 0;
@@ -1207,7 +1201,6 @@ var Vue = (function (exports) {
     findLastIndex(fn, thisArg) {
       return apply(this, "findLastIndex", fn, thisArg, void 0, arguments);
     },
-    // flat, flatMap could benefit from ARRAY_ITERATE but are not straight-forward to implement
     forEach(fn, thisArg) {
       return apply(this, "forEach", fn, thisArg, void 0, arguments);
     },
@@ -1220,7 +1213,6 @@ var Vue = (function (exports) {
     join(separator) {
       return reactiveReadArray(this).join(separator);
     },
-    // keys() iterator only reads `length`, no optimization required
     lastIndexOf(...args) {
       return searchProxy(this, "lastIndexOf", args);
     },
@@ -1242,7 +1234,6 @@ var Vue = (function (exports) {
     shift() {
       return noTracking(this, "shift");
     },
-    // slice could use ARRAY_ITERATE but also seems to beg for range tracking
     some(fn, thisArg) {
       return apply(this, "some", fn, thisArg, void 0, arguments);
     },
@@ -1373,7 +1364,6 @@ var Vue = (function (exports) {
         return isShallow2;
       } else if (key === "__v_raw") {
         if (receiver === (isReadonly2 ? isShallow2 ? shallowReadonlyMap : readonlyMap : isShallow2 ? shallowReactiveMap : reactiveMap).get(target) || // receiver is not the reactive proxy, but has the same prototype
-        // this means the receiver is a user proxy of the reactive proxy
         Object.getPrototypeOf(target) === Object.getPrototypeOf(receiver)) {
           return target;
         }
@@ -1392,9 +1382,6 @@ var Vue = (function (exports) {
       const res = Reflect.get(
         target,
         key,
-        // if this is a proxy wrapping a ref, return methods using the raw ref
-        // as receiver so that we don't have to call `toRaw` on the ref in all
-        // its class methods
         isRef(target) ? target : receiver
       );
       if (isSymbol(key) ? builtInSymbols.has(key) : isNonTrackableKeys(key)) {
@@ -1530,10 +1517,8 @@ var Vue = (function (exports) {
         isKeyOnly ? MAP_KEY_ITERATE_KEY : ITERATE_KEY
       );
       return extend(
-        // inheriting all iterator properties
         Object.create(innerIterator),
         {
-          // iterator protocol
           next() {
             const { value, done } = innerIterator.next();
             return done ? { value, done } : {
@@ -1752,7 +1737,6 @@ var Vue = (function (exports) {
         return 0 /* INVALID */;
     }
   }
-  // @__NO_SIDE_EFFECTS__
   function reactive(target) {
     if (/* @__PURE__ */ isReadonly(target)) {
       return target;
@@ -1765,7 +1749,6 @@ var Vue = (function (exports) {
       reactiveMap
     );
   }
-  // @__NO_SIDE_EFFECTS__
   function shallowReactive(target) {
     return createReactiveObject(
       target,
@@ -1775,7 +1758,6 @@ var Vue = (function (exports) {
       shallowReactiveMap
     );
   }
-  // @__NO_SIDE_EFFECTS__
   function readonly(target) {
     return createReactiveObject(
       target,
@@ -1785,7 +1767,6 @@ var Vue = (function (exports) {
       readonlyMap
     );
   }
-  // @__NO_SIDE_EFFECTS__
   function shallowReadonly(target) {
     return createReactiveObject(
       target,
@@ -1827,26 +1808,21 @@ var Vue = (function (exports) {
     proxyMap.set(target, proxy);
     return proxy;
   }
-  // @__NO_SIDE_EFFECTS__
   function isReactive(value) {
     if (/* @__PURE__ */ isReadonly(value)) {
       return /* @__PURE__ */ isReactive(value["__v_raw"]);
     }
     return !!(value && value["__v_isReactive"]);
   }
-  // @__NO_SIDE_EFFECTS__
   function isReadonly(value) {
     return !!(value && value["__v_isReadonly"]);
   }
-  // @__NO_SIDE_EFFECTS__
   function isShallow(value) {
     return !!(value && value["__v_isShallow"]);
   }
-  // @__NO_SIDE_EFFECTS__
   function isProxy(value) {
     return value ? !!value["__v_raw"] : false;
   }
-  // @__NO_SIDE_EFFECTS__
   function toRaw(observed) {
     const raw = observed && observed["__v_raw"];
     return raw ? /* @__PURE__ */ toRaw(raw) : observed;
@@ -1860,15 +1836,12 @@ var Vue = (function (exports) {
   const toReactive = (value) => isObject(value) ? /* @__PURE__ */ reactive(value) : value;
   const toReadonly = (value) => isObject(value) ? /* @__PURE__ */ readonly(value) : value;
 
-  // @__NO_SIDE_EFFECTS__
   function isRef(r) {
     return r ? r["__v_isRef"] === true : false;
   }
-  // @__NO_SIDE_EFFECTS__
   function ref(value) {
     return createRef(value, false);
   }
-  // @__NO_SIDE_EFFECTS__
   function shallowRef(value) {
     return createRef(value, true);
   }
@@ -1968,7 +1941,6 @@ var Vue = (function (exports) {
   function customRef(factory) {
     return new CustomRefImpl(factory);
   }
-  // @__NO_SIDE_EFFECTS__
   function toRefs(object) {
     if (!isProxy(object)) {
       warn$2(`toRefs() expects a reactive object but received a plain one.`);
@@ -2028,7 +2000,6 @@ var Vue = (function (exports) {
       return this._value = this._getter();
     }
   }
-  // @__NO_SIDE_EFFECTS__
   function toRef(source, key, defaultValue) {
     if (/* @__PURE__ */ isRef(source)) {
       return source;
@@ -2060,8 +2031,6 @@ var Vue = (function (exports) {
        * @internal
        */
       this.__v_isRef = true;
-      // TODO isolatedDeclarations "__v_isReadonly"
-      // A computed is also a subscriber that tracks other deps
       /**
        * @internal
        */
@@ -2082,7 +2051,6 @@ var Vue = (function (exports) {
        * @internal
        */
       this.next = void 0;
-      // for backwards compat
       this.effect = this;
       this["__v_isReadonly"] = !setter;
       this.isSSR = isSSR;
@@ -2118,7 +2086,6 @@ var Vue = (function (exports) {
       }
     }
   }
-  // @__NO_SIDE_EFFECTS__
   function computed$1(getterOrOptions, debugOptions, isSSR = false) {
     let getter;
     let setter;
@@ -2268,13 +2235,11 @@ var Vue = (function (exports) {
           try {
             const args = [
               newValue,
-              // pass undefined as the old value when it's changed for the first time
               oldValue === INITIAL_WATCHER_VALUE ? void 0 : isMultiSource && oldValue[0] === INITIAL_WATCHER_VALUE ? [] : oldValue,
               boundCleanup
             ];
             oldValue = newValue;
             call ? call(cb, 3, args) : (
-              // @ts-expect-error
               cb(...args)
             );
           } finally {
@@ -2376,7 +2341,6 @@ var Vue = (function (exports) {
         instance,
         11,
         [
-          // eslint-disable-next-line no-restricted-syntax
           msg + args.map((a) => {
             var _a, _b;
             return (_b = (_a = a.toString) == null ? void 0 : _a.call(a)) != null ? _b : JSON.stringify(a);
@@ -2939,12 +2903,8 @@ var Vue = (function (exports) {
       buffer.forEach(({ event, args }) => devtools$1.emit(event, ...args));
       buffer = [];
     } else if (
-      // handle late devtools injection - only do this if we are in an actual
-      // browser environment to avoid the timer handle stalling test runner exit
-      // (#4815)
       typeof window !== "undefined" && // some envs mock window but not fully
       window.HTMLElement && // also exclude jsdom
-      // eslint-disable-next-line no-restricted-syntax
       !((_b = (_a = window.navigator) == null ? void 0 : _a.userAgent) == null ? void 0 : _b.includes("jsdom"))
     ) {
       const replay = target.__VUE_DEVTOOLS_HOOK_REPLAY__ = target.__VUE_DEVTOOLS_HOOK_REPLAY__ || [];
@@ -2985,7 +2945,6 @@ var Vue = (function (exports) {
       _devtoolsComponentRemoved(component);
     }
   };
-  // @__NO_SIDE_EFFECTS__
   function createDevtoolsComponentHook(hook) {
     return (component) => {
       emit$1(
@@ -3574,8 +3533,6 @@ var Vue = (function (exports) {
               vnode,
               createText,
               insert,
-              // if target is the same as the main view, insert anchors before current node
-              // to avoid hydrating mismatch
               parentNode(node) === target ? node : null
             );
           }
@@ -3658,17 +3615,14 @@ var Vue = (function (exports) {
     mode: String,
     appear: Boolean,
     persisted: Boolean,
-    // enter
     onBeforeEnter: TransitionHookValidator,
     onEnter: TransitionHookValidator,
     onAfterEnter: TransitionHookValidator,
     onEnterCancelled: TransitionHookValidator,
-    // leave
     onBeforeLeave: TransitionHookValidator,
     onLeave: TransitionHookValidator,
     onAfterLeave: TransitionHookValidator,
     onLeaveCancelled: TransitionHookValidator,
-    // appear
     onBeforeAppear: TransitionHookValidator,
     onAppear: TransitionHookValidator,
     onAfterAppear: TransitionHookValidator,
@@ -3687,8 +3641,6 @@ var Vue = (function (exports) {
       return () => {
         const children = slots.default && getTransitionRawChildren(slots.default(), true);
         const child = children && children.length ? findNonCommentChild(children) : (
-          // Keep explicit default-slot conditionals on the same transition path
-          // as regular v-if branches, which render a comment placeholder.
           instance.subTree ? createCommentVNode() : void 0
         );
         if (!child) {
@@ -3711,7 +3663,6 @@ var Vue = (function (exports) {
           rawProps,
           state,
           instance,
-          // #11061, ensure enterHooks is fresh after clone
           (hooks) => enterHooks = hooks
         );
         if (innerChild.type !== Comment) {
@@ -4001,11 +3952,8 @@ var Vue = (function (exports) {
     return ret;
   }
 
-  // @__NO_SIDE_EFFECTS__
   function defineComponent(options, extraOptions) {
     return isFunction(options) ? (
-      // #8236: extend call and options.name access are considered side-effects
-      // by Rollup, so we have to wrap it in a pure-annotated IIFE.
       /* @__PURE__ */ (() => extend({ name: options.name }, extraOptions, { setup: options }))()
     ) : options;
   }
@@ -4440,7 +4388,6 @@ var Vue = (function (exports) {
         if (isTemplateNode(el)) {
           needCallTransitionHooks = needTransition(
             null,
-            // no need check parentSuspense in hydration
             transition
           ) && parentComponent && parentComponent.vnode.props && parentComponent.vnode.props.appear;
           const content = el.content.firstChild;
@@ -4504,7 +4451,6 @@ Server rendered element contains more child nodes than client vdom.`
             const namespace = el.namespaceURI.includes("svg") ? "svg" : el.namespaceURI.includes("MathML") ? "mathml" : void 0;
             for (const key in props) {
               if (// #11189 skip if this node has directives that have created hooks
-              // as it could have mutated the DOM in any possible way
               !(dirs && dirs.some((d) => d.dir.created)) && propHasMismatch(el, key, props[key], vnode, parentComponent)) {
                 logMismatchError();
               }
@@ -4953,7 +4899,6 @@ Server rendered element contains fewer child nodes than client vdom.`
   }
 
   const isAsyncWrapper = (i) => !!i.type.__asyncLoader;
-  // @__NO_SIDE_EFFECTS__
   function defineAsyncComponent(source) {
     if (isFunction(source)) {
       source = { loader: source };
@@ -4965,7 +4910,6 @@ Server rendered element contains fewer child nodes than client vdom.`
       delay = 200,
       hydrate: hydrateStrategy,
       timeout,
-      // undefined = never times out
       suspensible = true,
       onError: userOnError
     } = source;
@@ -5141,9 +5085,6 @@ Server rendered element contains fewer child nodes than client vdom.`
   const isKeepAlive = (vnode) => vnode.type.__isKeepAlive;
   const KeepAliveImpl = {
     name: `KeepAlive`,
-    // Marker for special handling inside the renderer. We are not using a ===
-    // check directly on KeepAlive in the renderer, because importing it directly
-    // would prevent it from being tree-shaken.
     __isKeepAlive: true,
     props: {
       include: [String, RegExp, Array],
@@ -5249,7 +5190,6 @@ Server rendered element contains fewer child nodes than client vdom.`
           include && pruneCache((name) => matches(include, name));
           exclude && pruneCache((name) => !matches(exclude, name));
         },
-        // prune post-render after `current` has been updated
         { flush: "post", deep: true }
       );
       let pendingCacheKey = null;
@@ -5479,8 +5419,6 @@ Server rendered element contains fewer child nodes than client vdom.`
         }
       }
       const res = (
-        // local registration
-        // check instance[type] first which is resolved for options API
         resolve(instance[type] || Component[type], name) || // global registration
         resolve(instance.appContext[type], name)
       );
@@ -5606,7 +5544,6 @@ If this is a native custom element, make sure to exclude it from component resol
     try {
       const validSlotContent = slot && ensureValidVNode(slot(props));
       const slotKey = props.key || branchKey || // slot content array of a dynamic conditional slot may have a branch
-      // key attached in the `createSlots` helper, respect that
       validSlotContent && validSlotContent.key;
       rendered = createBlock(
         Fragment,
@@ -5658,8 +5595,6 @@ If this is a native custom element, make sure to exclude it from component resol
     return getPublicInstance(i.parent);
   };
   const publicPropertiesMap = (
-    // Move PURE marker to new line to workaround compiler discarding it
-    // due to type annotation
     /* @__PURE__ */ extend(/* @__PURE__ */ Object.create(null), {
       $: (i) => i,
       $el: (i) => i.vnode.el,
@@ -5731,7 +5666,6 @@ If this is a native custom element, make sure to exclude it from component resol
         }
         return publicGetter(instance);
       } else if (
-        // css module (injected by vue-loader)
         (cssModule = type.__cssModules) && (cssModule = cssModule[key])
       ) {
         return cssModule;
@@ -5739,14 +5673,12 @@ If this is a native custom element, make sure to exclude it from component resol
         accessCache[key] = 4 /* CONTEXT */;
         return ctx[key];
       } else if (
-        // global properties
         globalProperties = appContext.config.globalProperties, hasOwn(globalProperties, key)
       ) {
         {
           return globalProperties[key];
         }
       } else if (currentRenderingInstance && (!isString(key) || // #1091 avoid internal isRef/isVNode checks on component instance leading
-      // to infinite warning loop
       key.indexOf("__v") !== 0)) {
         if (data !== EMPTY_OBJ && isReservedPrefix(key[0]) && hasOwn(data, key)) {
           warn$1(
@@ -5848,8 +5780,6 @@ If this is a native custom element, make sure to exclude it from component resol
         configurable: true,
         enumerable: false,
         get: () => publicPropertiesMap[key](instance),
-        // intercepted by the proxy so no need for implementation,
-        // but needed to prevent set errors
         set: NOOP
       });
     });
@@ -6055,14 +5985,12 @@ If this is a native custom element, make sure to exclude it from component resol
       callHook$1(options.beforeCreate, instance, "bc");
     }
     const {
-      // state
       data: dataOptions,
       computed: computedOptions,
       methods,
       watch: watchOptions,
       provide: provideOptions,
       inject: injectOptions,
-      // lifecycle
       created,
       beforeMount,
       mounted,
@@ -6079,10 +6007,8 @@ If this is a native custom element, make sure to exclude it from component resol
       renderTriggered,
       errorCaptured,
       serverPrefetch,
-      // public API
       expose,
       inheritAttrs,
-      // assets
       components,
       directives,
       filters
@@ -6364,10 +6290,8 @@ If this is a native custom element, make sure to exclude it from component resol
     data: mergeDataFn,
     props: mergeEmitsOrPropsOptions,
     emits: mergeEmitsOrPropsOptions,
-    // objects
     methods: mergeObjectOptions,
     computed: mergeObjectOptions,
-    // lifecycle
     beforeCreate: mergeAsArray$1,
     created: mergeAsArray$1,
     beforeMount: mergeAsArray$1,
@@ -6382,12 +6306,9 @@ If this is a native custom element, make sure to exclude it from component resol
     deactivated: mergeAsArray$1,
     errorCaptured: mergeAsArray$1,
     serverPrefetch: mergeAsArray$1,
-    // assets
     components: mergeObjectOptions,
     directives: mergeObjectOptions,
-    // watch
     watch: mergeWatchOptions,
-    // provide / inject
     provide: mergeDataFn,
     inject: mergeInject
   };
@@ -6695,11 +6616,6 @@ If you want to remount the same app, move your app creation logic into a factory
           }
           i.emit(`update:${name}`, emittedValue);
           if (hasChanged(value, prevSetValue) && (hasChanged(value, emittedValue) && !hasChanged(emittedValue, prevEmittedValue) || // #13524: browsers differ in when they flush microtasks between
-          // event listeners. If a v-model listener emits an intermediate value
-          // and a following listener restores the model to its previous prop
-          // value before parent updates are flushed, the parent render can be
-          // deduped as having no prop change. Force a local update so DOM state
-          // such as an input's value is synchronized back to the current model.
           hasVModel && prevSetValue !== EMPTY_OBJ && !hasChanged(emittedValue, localValue))) {
             trigger();
           }
@@ -7210,9 +7126,6 @@ If you want to remount the same app, move your app creation logic into a factory
     const [options] = instance.propsOptions;
     let hasAttrsChanged = false;
     if (
-      // always force full diff in dev
-      // - #1942 if hmr is enabled with sfc component
-      // - vite#872 non-sfc component used by sfc component
       !isInHmrContext(instance) && (optimized || patchFlag > 0) && !(patchFlag & 16)
     ) {
       if (patchFlag & 8) {
@@ -7256,7 +7169,6 @@ If you want to remount the same app, move your app creation logic into a factory
       for (const key in rawCurrentProps) {
         if (!rawProps || // for camelCase
         !hasOwn(rawProps, key) && // it's possible the original props was passed in as kebab-case
-        // and converted to camelCase (#955)
         ((kebabKey = hyphenate(key)) === key || !hasOwn(rawProps, kebabKey))) {
           if (options) {
             if (rawPrevProps && // for camelCase
@@ -8085,9 +7997,7 @@ If you want to remount the same app, move your app creation logic into a factory
       }
       parentComponent && toggleRecurse(parentComponent, true);
       if (
-        // HMR updated, force full diff
         isHmrUpdating || // #6385 the old vnode may be a user-wrapped non-isomorphic block
-        // Force full diff when block metadata is unstable.
         dynamicChildren && (!n1.dynamicChildren || n1.dynamicChildren.length !== dynamicChildren.length)
       ) {
         patchFlag = 0;
@@ -8167,16 +8077,10 @@ If you want to remount the same app, move your app creation logic into a factory
         const oldVNode = oldChildren[i];
         const newVNode = newChildren[i];
         const container = (
-          // oldVNode may be an errored async setup() component inside Suspense
-          // which will not have a mounted element
           oldVNode.el && // - In the case of a Fragment, we need to provide the actual parent
-          // of the Fragment itself so it can move its children.
           (oldVNode.type === Fragment || // - In the case of different nodes, there is going to be a replacement
-          // which also requires the correct parent container
           !isSameVNodeType(oldVNode, newVNode) || // - In the case of a component, it could contain anything.
           oldVNode.shapeFlag & (6 | 64 | 128)) ? hostParentNode(oldVNode.el) : (
-            // In other cases, the parent container is not actually used so we
-            // just pass the block element here to avoid a DOM parentNode call.
             fallbackContainer
           )
         );
@@ -8227,7 +8131,6 @@ If you want to remount the same app, move your app creation logic into a factory
       const fragmentEndAnchor = n2.anchor = n1 ? n1.anchor : hostCreateText("");
       let { patchFlag, dynamicChildren, slotScopeIds: fragmentSlotScopeIds } = n2;
       if (
-        // #5523 dev root fragment may inherit directives
         isHmrUpdating || patchFlag & 2048
       ) {
         patchFlag = 0;
@@ -8241,10 +8144,6 @@ If you want to remount the same app, move your app creation logic into a factory
         hostInsert(fragmentStartAnchor, container, anchor);
         hostInsert(fragmentEndAnchor, container, anchor);
         mountChildren(
-          // #10007
-          // such fragment like `<></>` will be compiled into
-          // a fragment which doesn't have a children.
-          // In this case fallback to an empty array
           n2.children || [],
           container,
           fragmentEndAnchor,
@@ -8256,7 +8155,6 @@ If you want to remount the same app, move your app creation logic into a factory
         );
       } else {
         if (patchFlag > 0 && patchFlag & 64 && dynamicChildren && // #2715 the previous fragment could've been a BAILed one as a result
-        // of renderSlot() with no valid children
         n1.dynamicChildren && n1.dynamicChildren.length === dynamicChildren.length) {
           patchBlockChildren(
             n1.dynamicChildren,
@@ -8528,9 +8426,7 @@ If you want to remount the same app, move your app creation logic into a factory
           patch(
             prevTree,
             nextTree,
-            // parent may have changed if it's in a teleport
             hostParentNode(prevTree.el),
-            // anchor may have changed if it's in a fragment
             getNextHostNode(prevTree),
             instance,
             parentSuspense,
@@ -8848,7 +8744,6 @@ If you want to remount the same app, move your app creation logic into a factory
           const nextChild = c2[nextIndex];
           const anchorVNode = c2[nextIndex + 1];
           const anchor = nextIndex + 1 < l2 ? (
-            // #13559, #14173 fallback to el placeholder for unresolved async component
             anchorVNode.el || resolveAsyncComponentPlaceholder(anchorVNode)
           ) : parentAnchor;
           if (newIndexToOldIndexMap[i] === 0) {
@@ -8998,10 +8893,6 @@ If you want to remount the same app, move your app creation logic into a factory
             doRemove
           );
         } else if (dynamicChildren && // #5154
-        // when v-once is used inside a block, setBlockTracking(-1) marks the
-        // parent block with hasOnce: true
-        // so that it doesn't take the fast path during unmount - otherwise
-        // components nested in v-once are never unmounted.
         !dynamicChildren.hasOnce && // #1153: fast path should not be taken for non-stable (v-for) fragments
         (type !== Fragment || patchFlag > 0 && patchFlag & 64)) {
           unmountChildren(
@@ -9285,10 +9176,6 @@ If you want to remount the same app, move your app creation logic into a factory
   let suspenseId = 0;
   const SuspenseImpl = {
     name: "Suspense",
-    // In order to make Suspense tree-shakable, we need to avoid importing it
-    // directly in the renderer. The renderer checks for the __isSuspense flag
-    // on a vnode's type and calls the `process` method, passing in renderer
-    // internals.
     __isSuspense: true,
     process(n1, n2, container, anchor, parentComponent, parentSuspense, namespace, slotScopeIds, optimized, rendererInternals) {
       if (n1 == null) {
@@ -9371,7 +9258,6 @@ If you want to remount the same app, move your app creation logic into a factory
         anchor,
         parentComponent,
         null,
-        // fallback tree will not have suspense context
         namespace,
         slotScopeIds
       );
@@ -9412,7 +9298,6 @@ If you want to remount the same app, move your app creation logic into a factory
               anchor,
               parentComponent,
               null,
-              // fallback tree will not have suspense context
               namespace,
               slotScopeIds,
               optimized
@@ -9453,7 +9338,6 @@ If you want to remount the same app, move your app creation logic into a factory
               anchor,
               parentComponent,
               null,
-              // fallback tree will not have suspense context
               namespace,
               slotScopeIds,
               optimized
@@ -9691,7 +9575,6 @@ If you want to remount the same app, move your app creation logic into a factory
             anchor2,
             parentComponent2,
             null,
-            // fallback tree will not have suspense context
             namespace2,
             slotScopeIds,
             optimized
@@ -9708,9 +9591,7 @@ If you want to remount the same app, move your app creation logic into a factory
           activeBranch,
           parentComponent2,
           null,
-          // no suspense so unmount hooks fire now
           true
-          // shouldRemove
         );
         if (!delayEnter) {
           mountFallback();
@@ -9749,12 +9630,7 @@ If you want to remount the same app, move your app creation logic into a factory
           setupRenderEffect(
             instance,
             vnode2,
-            // component may have been moved before resolve.
-            // if this is not a hydration, instance.subTree will be the comment
-            // placeholder.
             parentNode(hydratedEl || instance.subTree.el),
-            // anchor will not be used if this is hydration, so only need to
-            // consider the comment placeholder case.
             hydratedEl ? null : next(instance.subTree),
             suspense,
             namespace,
@@ -9801,7 +9677,6 @@ If you want to remount the same app, move your app creation logic into a factory
       parentSuspense,
       parentComponent,
       node.parentNode,
-      // eslint-disable-next-line no-restricted-globals
       document.createElement("div"),
       null,
       namespace,
@@ -10020,11 +9895,7 @@ If you want to remount the same app, move your app creation logic into a factory
     if (isBlockTreeEnabled > 0 && // avoid a block node from tracking itself
     !isBlockNode && // has current parent block
     currentBlock && // presence of a patch flag indicates this node needs patching on updates.
-    // component nodes also should always be patched, because even if the
-    // component doesn't need to update, it needs to persist the instance on to
-    // the next vnode so that it can be properly unmounted later.
     (vnode.patchFlag > 0 || shapeFlag & 6) && // the EVENTS flag is only for hydration and if it is the only flag, the
-    // vnode should not be considered dynamic due to handler caching.
     vnode.patchFlag !== 32) {
       currentBlock.push(vnode);
     }
@@ -10109,9 +9980,6 @@ Component that was made reactive: `,
       props: mergedProps,
       key: mergedProps && normalizeKey(mergedProps),
       ref: extraProps && extraProps.ref ? (
-        // #2078 in the case of <component :is="vnode" ref="extra"/>
-        // if the vnode itself already has a ref, cloneVNode will need to merge
-        // the refs so the single vnode can be set on multiple refs
         mergeRef && ref ? isArray(ref) ? ref.concat(normalizeRef(extraProps)) : [ref, normalizeRef(extraProps)] : normalizeRef(extraProps)
       ) : ref,
       scopeId: vnode.scopeId,
@@ -10122,20 +9990,12 @@ Component that was made reactive: `,
       targetAnchor: vnode.targetAnchor,
       staticCount: vnode.staticCount,
       shapeFlag: vnode.shapeFlag,
-      // if the vnode is cloned with extra props, we can no longer assume its
-      // existing patch flag to be reliable and need to add the FULL_PROPS flag.
-      // note: preserve flag for fragments since they use the flag for children
-      // fast paths only.
       patchFlag: extraProps && vnode.type !== Fragment ? patchFlag === -1 ? 16 : patchFlag | 16 : patchFlag,
       dynamicProps: vnode.dynamicProps,
       dynamicChildren: vnode.dynamicChildren,
       appContext: vnode.appContext,
       dirs: vnode.dirs,
       transition,
-      // These should technically only be non-null on mounted VNodes. However,
-      // they *should* be copied for kept-alive vnodes. So we just always copy
-      // them since them being non-null during a mount doesn't affect the logic as
-      // they will simply be overwritten.
       component: vnode.component,
       suspense: vnode.suspense,
       ssContent: vnode.ssContent && cloneVNode(vnode.ssContent),
@@ -10179,7 +10039,6 @@ Component that was made reactive: `,
       return createVNode(
         Fragment,
         null,
-        // #3666, avoid reference pollution when reusing vnode
         child.slice()
       );
     } else if (isVNode(child)) {
@@ -10257,7 +10116,6 @@ Component that was made reactive: `,
           if (incoming && existing !== incoming && !(isArray(existing) && existing.includes(incoming))) {
             ret[key] = existing ? [].concat(existing, incoming) : incoming;
           } else if (incoming == null && existing == null && // mergeProps({ 'onUpdate:modelValue': undefined }) should not retain
-          // the model listener.
           !isModelListener(key)) {
             ret[key] = incoming;
           }
@@ -10287,13 +10145,10 @@ Component that was made reactive: `,
       parent,
       appContext,
       root: null,
-      // to be immediately set
       next: null,
       subTree: null,
-      // will be set synchronously right after creation
       effect: null,
       update: null,
-      // will be set synchronously right after creation
       job: null,
       scope: new EffectScope(
         true
@@ -10308,21 +10163,14 @@ Component that was made reactive: `,
       ids: parent ? parent.ids : ["", 0, 0],
       accessCache: null,
       renderCache: [],
-      // local resolved assets
       components: null,
       directives: null,
-      // resolved props and emits options
       propsOptions: normalizePropsOptions(type, appContext),
       emitsOptions: normalizeEmitsOptions(type, appContext),
-      // emit
       emit: null,
-      // to be set immediately
       emitted: null,
-      // props default value
       propsDefaults: EMPTY_OBJ,
-      // inheritAttrs
       inheritAttrs: type.inheritAttrs,
-      // state
       ctx: EMPTY_OBJ,
       data: EMPTY_OBJ,
       props: EMPTY_OBJ,
@@ -10331,13 +10179,10 @@ Component that was made reactive: `,
       refs: EMPTY_OBJ,
       setupState: EMPTY_OBJ,
       setupContext: null,
-      // suspense related
       suspense,
       suspenseId: suspense ? suspense.pendingId : 0,
       asyncDep: null,
       asyncResolved: false,
-      // lifecycle hooks
-      // not using enums here because it results in computed properties
       isMounted: false,
       isUnmounted: false,
       isDeactivated: false,
@@ -10987,10 +10832,6 @@ Component that was made reactive: `,
     setScopeId(el, id) {
       el.setAttribute(id, "");
     },
-    // __UNSAFE__
-    // Reason: innerHTML.
-    // Static content here can only come from compiled templates.
-    // As long as the user only uses trusted templates, this is safe.
     insertStaticContent(content, parent, anchor, namespace, start, end) {
       const before = anchor ? anchor.previousSibling : parent.lastChild;
       if (start && (start === end || start.nextSibling)) {
@@ -11013,9 +10854,7 @@ Component that was made reactive: `,
         parent.insertBefore(template, anchor);
       }
       return [
-        // first
         before ? before.nextSibling : parent.firstChild,
-        // last
         anchor ? anchor.previousSibling : parent.lastChild
       ];
     }
@@ -11319,7 +11158,6 @@ Component that was made reactive: `,
   const vShowOriginalDisplay = /* @__PURE__ */ Symbol("_vod");
   const vShowHidden = /* @__PURE__ */ Symbol("_vsh");
   const vShow = {
-    // used for prop mismatch check during hydration
     name: "show",
     beforeMount(el, { value }, { transition }) {
       el[vShowOriginalDisplay] = el.style.display === "none" ? "" : el.style.display;
@@ -11579,8 +11417,6 @@ Component that was made reactive: `,
     !tag.includes("-")) {
       const oldValue = tag === "OPTION" ? el.getAttribute("value") || "" : el.value;
       const newValue = value == null ? (
-        // #11647: value should be set as empty string for null and undefined,
-        // but <input type="checkbox"> should be set as 'on'.
         el.type === "checkbox" ? "on" : ""
       ) : String(value);
       if (oldValue !== newValue || !("_value" in el)) {
@@ -11732,7 +11568,6 @@ Expected function or array of functions, received type ${typeof value}.`
         patchAttr(el, key, nextValue, isSVG, parentComponent, key !== "value");
       }
     } else if (
-      // #11081 force set props for possible async custom element
       el._isVueCE && // #12408 check if it's declared prop or it's async custom element
       (shouldSetAsPropForVueCE(el, key) || // @ts-expect-error _def is private
       el._def.__asyncLoader && (/[A-Z]/.test(key) || !isString(nextValue)))
@@ -11785,7 +11620,6 @@ Expected function or array of functions, received type ${typeof value}.`
   }
   function shouldSetAsPropForVueCE(el, key) {
     const props = (
-      // @ts-expect-error _def is private
       el._def.props
     );
     if (!props) {
@@ -11796,7 +11630,6 @@ Expected function or array of functions, received type ${typeof value}.`
   }
 
   const REMOVAL = {};
-  // @__NO_SIDE_EFFECTS__
   function defineCustomElement(options, extraOptions, _createApp) {
     let Comp = defineComponent(options, extraOptions);
     if (isPlainObject(Comp)) Comp = extend({}, Comp, extraOptions);
@@ -11991,7 +11824,6 @@ Expected function or array of functions, received type ${typeof value}.`
       for (const key in exposed) {
         if (!hasOwn(this, key)) {
           Object.defineProperty(this, key, {
-            // unwrap ref to be consistent with public instance behavior
             get: () => unref(exposed[key])
           });
         } else {
@@ -12504,7 +12336,6 @@ Expected function or array of functions, received type ${typeof value}.`
         addEventListener(el, "change", onCompositionEnd);
       }
     },
-    // set value on mounted so it's after min/max for type="range"
     mounted(el, { value }) {
       el.value = value == null ? "" : value;
     },
@@ -12529,7 +12360,6 @@ Expected function or array of functions, received type ${typeof value}.`
     }
   };
   const vModelCheckbox = {
-    // #4096 array checkboxes need to be deep traversed
     deep: true,
     created(el, _, vnode) {
       el[assignKey] = getModelAssigner(vnode);
@@ -12561,7 +12391,6 @@ Expected function or array of functions, received type ${typeof value}.`
         }
       });
     },
-    // set initial checked on mount to wait for true-value/false-value
     mounted: setChecked,
     beforeUpdate(el, binding, vnode) {
       el[assignKey] = getModelAssigner(vnode);
@@ -12599,7 +12428,6 @@ Expected function or array of functions, received type ${typeof value}.`
     }
   };
   const vModelSelect = {
-    // <select multiple> value need to be deep traversed
     deep: true,
     created(el, { value, modifiers: { number } }, vnode) {
       el._modelValue = value;
@@ -12617,8 +12445,6 @@ Expected function or array of functions, received type ${typeof value}.`
       });
       el[assignKey] = getModelAssigner(vnode);
     },
-    // set value in mounted & updated because <select> relies on its children
-    // <option>s.
     mounted(el, { value }) {
       setSelected(el, value);
     },
@@ -13182,17 +13008,11 @@ Make sure to use the production build (*.prod.js) when deploying for production.
   }
   const Sequences = {
     Cdata: new Uint8Array([67, 68, 65, 84, 65, 91]),
-    // CDATA[
     CdataEnd: new Uint8Array([93, 93, 62]),
-    // ]]>
     CommentEnd: new Uint8Array([45, 45, 62]),
-    // `-->`
     ScriptEnd: new Uint8Array([60, 47, 115, 99, 114, 105, 112, 116]),
-    // `<\/script`
     StyleEnd: new Uint8Array([60, 47, 115, 116, 121, 108, 101]),
-    // `</style`
     TitleEnd: new Uint8Array([60, 47, 116, 105, 116, 108, 101]),
-    // `</title`
     TextareaEnd: new Uint8Array([
       60,
       47,
@@ -13205,7 +13025,6 @@ Make sure to use the production build (*.prod.js) when deploying for production.
       101,
       97
     ])
-    // `</textarea
   };
   class Tokenizer {
     constructor(stack, cbs) {
@@ -13355,10 +13174,8 @@ Make sure to use the production build (*.prod.js) when deploying for production.
     stateSpecialStartSequence(c) {
       const isEnd = this.sequenceIndex === this.currentSequence.length;
       const isMatch = isEnd ? (
-        // If we are at the end of the sequence, make sure the tag name has ended
         isEndOfTagSection(c)
       ) : (
-        // Otherwise, do a case-insensitive comparison
         (c | 32) === this.currentSequence[this.sequenceIndex]
       );
       if (!isMatch) {
@@ -13994,7 +13811,6 @@ Make sure to use the production build (*.prod.js) when deploying for production.
     return error;
   }
   const errorMessages = {
-    // parse errors
     [0]: "Illegal comment.",
     [1]: "CDATA section is allowed only in XML context.",
     [2]: "Duplicate attribute.",
@@ -14018,13 +13834,11 @@ Make sure to use the production build (*.prod.js) when deploying for production.
     [21]: "'<?' is allowed only in XML context.",
     [20]: `Unexpected null character.`,
     [22]: "Illegal '/' in tags.",
-    // Vue-specific parse errors
     [23]: "Invalid end tag.",
     [24]: "Element is missing end tag.",
     [25]: "Interpolation end sign was not found.",
     [27]: "End bracket for dynamic directive argument was not found. Note that dynamic directive argument cannot contain spaces.",
     [26]: "Legal directive name was expected.",
-    // transform errors
     [28]: `v-if/v-else-if is missing expression.`,
     [29]: `v-if/else branches must use unique keys.`,
     [30]: `v-else/v-else-if has no adjacent v-if or v-else-if.`,
@@ -14048,12 +13862,10 @@ Use a v-bind binding combined with a v-on listener that emits update:x event ins
     [46]: `Error parsing JavaScript expression: `,
     [47]: `<KeepAlive> expects exactly one child component.`,
     [52]: `@vnode-* hooks in templates are no longer supported. Use the vue: prefix instead. For example, @vnode-mounted should be changed to @vue:mounted. @vnode-* hooks support has been removed in 3.4.`,
-    // generic errors
     [48]: `"prefixIdentifiers" option is not supported in this build of compiler.`,
     [49]: `ES module mode is not supported in this build of compiler.`,
     [50]: `"cacheHandlers" option is only supported when the "prefixIdentifiers" option is enabled.`,
     [51]: `"scopeId" option is only supported in module mode.`,
-    // just to fulfill types
     [54]: ``
   };
 
@@ -14180,7 +13992,6 @@ Use a v-bind binding combined with a v-on listener that emits update:x event ins
       (p) => p.type === 7 && p.name === "bind" && (!p.arg || // v-bind="obj"
       p.arg.type !== 4 || // v-bind:[_ctx.foo]
       !p.arg.isStatic)
-      // v-bind:[foo]
     );
   }
   function isText$1(node) {
@@ -14393,7 +14204,6 @@ Use a v-bind binding combined with a v-on listener that emits update:x event ins
         tag: name,
         ns: currentOptions.getNamespace(name, stack[0], currentOptions.ns),
         tagType: 0,
-        // will be refined on tag close
         props: [],
         children: [],
         loc: getLoc(start - 1, end),
@@ -14622,9 +14432,7 @@ Use a v-bind binding combined with a v-on listener that emits update:x event ins
           case 17:
           case 18:
           case 19:
-          // "
           case 20:
-          // '
           case 21:
             emitError(9, end);
             break;
@@ -14897,9 +14705,7 @@ Use a v-bind binding combined with a v-on listener that emits update:x event ins
   function getLoc(start, end) {
     return {
       start: tokenizer.getPos(start),
-      // @ts-expect-error allow late attachment
       end: end == null ? end : tokenizer.getPos(end),
-      // @ts-expect-error allow late attachment
       source: end == null ? end : getSlice(start, end)
     };
   }
@@ -14994,8 +14800,6 @@ Use a v-bind binding combined with a v-on listener that emits update:x event ins
       root,
       void 0,
       context,
-      // Root node is unfortunately non-hoistable due to potential parent
-      // fallthrough attributes.
       !!getSingleElementRoot(root)
     );
   }
@@ -15303,7 +15107,6 @@ Use a v-bind binding combined with a v-on listener that emits update:x event ins
   }) {
     const nameMatch = filename.replace(/\?.*$/, "").match(/([^/\\]+)\.\w+$/);
     const context = {
-      // options
       filename,
       selfName: nameMatch && capitalize(camelize(nameMatch[1])),
       prefixIdentifiers,
@@ -15327,7 +15130,6 @@ Use a v-bind binding combined with a v-on listener that emits update:x event ins
       onError,
       onWarn,
       compatConfig,
-      // state
       root,
       helpers: /* @__PURE__ */ new Map(),
       components: /* @__PURE__ */ new Set(),
@@ -15350,7 +15152,6 @@ Use a v-bind binding combined with a v-on listener that emits update:x event ins
       currentNode: root,
       childIndex: 0,
       inVOnce: false,
-      // methods
       helper(name) {
         const count = context.helpers.get(name) || 0;
         context.helpers.set(name, count + 1);
@@ -15527,7 +15328,6 @@ Use a v-bind binding combined with a v-on listener that emits update:x event ins
           context.helper(TO_DISPLAY_STRING);
         }
         break;
-      // for container types, further traverse downwards
       case 9:
         for (let i2 = 0; i2 < node.branches.length; i2++) {
           traverseNode(node.branches[i2], context);
@@ -15875,7 +15675,6 @@ Use a v-bind binding combined with a v-on listener that emits update:x event ins
       case 21:
         genNodeList(node.body, context, true, false);
         break;
-      // SSR only types
       case 22:
         break;
       case 23:
@@ -16192,7 +15991,6 @@ Use a v-bind binding combined with a v-on listener that emits update:x event ins
             dir.exp = processExpression(
               exp,
               context,
-              // slot args must be processed as function params
               dir.name === "slot"
             );
           }
@@ -16336,8 +16134,6 @@ Use a v-bind binding combined with a v-on listener that emits update:x event ins
       return createConditionalExpression(
         branch.condition,
         createChildrenCodegenNode(branch, keyIndex, context),
-        // make sure to pass in asBlock: true so that the comment node call
-        // closes the current block.
         createCallExpression(context.helper(CREATE_COMMENT), [
           '"v-if"' ,
           "true"
@@ -16802,8 +16598,6 @@ Use a v-bind binding combined with a v-on listener that emits update:x event ins
       if (!hasTemplateSlots) {
         slotsProperties.push(buildDefaultSlotProperty(void 0, children));
       } else if (implicitDefaultChildren.length && // #3766
-      // with whitespace: 'preserve', whitespaces between slots will end up in
-      // implicitDefaultChildren. Ignore if all implicit children are whitespaces.
       !implicitDefaultChildren.every(isWhitespaceText)) {
         if (hasNamedDefaultSlot) {
           context.onError(
@@ -16824,8 +16618,6 @@ Use a v-bind binding combined with a v-on listener that emits update:x event ins
       slotsProperties.concat(
         createObjectProperty(
           `_`,
-          // 2 = compiled but dynamic = can skip normalization, but must run diff
-          // 1 = compiled and static = can skip normalization AND diff as optimized
           createSimpleExpression(
             slotFlag + (` /* ${slotFlagsText[slotFlag]} */` ),
             false
@@ -16896,11 +16688,7 @@ Use a v-bind binding combined with a v-on listener that emits update:x event ins
       let dynamicPropNames;
       let vnodeDirectives;
       let shouldUseBlock = (
-        // dynamic component may resolve to plain elements
         isDynamicComponent || vnodeTag === TELEPORT || vnodeTag === SUSPENSE || !isComponent && // <svg> and <foreignObject> must be forced into blocks so that block
-        // updates inside get proper isSVG flag at runtime. (#639, #643)
-        // This is technically web-specific, but splitting the logic out of core
-        // leads to too much unnecessary complexity.
         (tag === "svg" || tag === "foreignObject" || tag === "math")
       );
       if (props.length > 0) {
@@ -17057,7 +16845,6 @@ Use a v-bind binding combined with a v-on listener that emits update:x event ins
         const name = key.content;
         const isEventHandler = isOn(name);
         if (isEventHandler && (!isComponent || isDynamicComponent) && // omit the flag for click handlers because hydration gives click
-        // dedicated fast path.
         name.toLowerCase() !== "onclick" && // omit v-model handlers
         name !== "onUpdate:modelValue" && // omit onVnodeXXX hooks
         !isReservedProp(name)) {
@@ -17132,9 +16919,7 @@ Use a v-bind binding combined with a v-on listener that emits update:x event ins
           continue;
         }
         if (
-          // #938: elements with dynamic keys should be forced into blocks
           isVBind && isStaticArgOf(arg, "key") || // inline before-update hooks need to force block so that it is invoked
-          // before children
           isVOn && hasChildren && isStaticArgOf(arg, "vue:before-update")
         ) {
           shouldUseBlock = true;
@@ -17258,9 +17043,7 @@ Use a v-bind binding combined with a v-on listener that emits update:x event ins
               );
             }
             if (styleProp && // the static style is compiled into an object,
-            // so use `hasStyleBinding` to ensure that it is a dynamic style binding
             (hasStyleBinding || styleProp.value.type === 4 && styleProp.value.content.trim()[0] === `[` || // v-bind:style and style both exist,
-            // v-bind:style with static literal object
             styleProp.value.type === 17)) {
               styleProp.value = createCallExpression(
                 context.helper(NORMALIZE_STYLE),
@@ -17481,12 +17264,8 @@ Use a v-bind binding combined with a v-on listener that emits update:x event ins
           rawName = `vnode-${rawName.slice(4)}`;
         }
         const eventString = node.tagType !== 0 || rawName.startsWith("vnode") || !/[A-Z]/.test(rawName) ? (
-          // for non-element and vnode lifecycle event listeners, auto convert
-          // it to camelCase. See issue #2249
           toHandlerKey(camelize(rawName))
         ) : (
-          // preserve case for plain element listeners that have uppercase
-          // letters, as these may be custom elements' custom events
           `on:${rawName}`
         );
         eventName = createSimpleExpression(eventString, true, arg.loc);
@@ -17627,19 +17406,10 @@ Use a v-bind binding combined with a v-on listener that emits update:x event ins
           }
         }
         if (!hasText || // if this is a plain element with a single text child, leave it
-        // as-is since the runtime has dedicated fast path for this by directly
-        // setting textContent of the element.
-        // for component root it's always normalized anyway.
         children.length === 1 && (node.type === 0 || node.type === 1 && node.tagType === 0 && // #3756
-        // custom directives can potentially add DOM elements arbitrarily,
-        // we need to avoid setting textContent of the element at runtime
-        // to avoid accidentally overwriting the DOM elements added
-        // by the user through custom directives.
         !node.props.find(
           (p) => p.type === 7 && !context.directiveTransforms[p.name]
         ) && // in compat mode, <template> tags with no special directives
-        // will be rendered as a fragment so its children must be
-        // converted into vnodes.
         true)) {
           return;
         }
@@ -17730,9 +17500,7 @@ Use a v-bind binding combined with a v-on listener that emits update:x event ins
       ]);
     }
     const props = [
-      // modelValue: foo
       createObjectProperty(propName, dir.exp),
-      // "onUpdate:modelValue": $event => (foo = $event)
       createObjectProperty(eventName, assignmentExp)
     ];
     if (dir.modifiers.length && node.tagType === 1) {
@@ -17858,13 +17626,11 @@ Use a v-bind binding combined with a v-on listener that emits update:x event ins
         nodeTransforms: [
           ...nodeTransforms,
           ...options.nodeTransforms || []
-          // user transforms
         ],
         directiveTransforms: extend(
           {},
           directiveTransforms,
           options.directiveTransforms || {}
-          // user transforms
         )
       })
     );
@@ -17936,7 +17702,6 @@ Use a v-bind binding combined with a v-on listener that emits update:x event ins
         return TRANSITION_GROUP;
       }
     },
-    // https://html.spec.whatwg.org/multipage/parsing.html#tree-construction-dispatcher
     getNamespace(tag, parent, rootNamespace) {
       let ns = parent ? parent.ns : rootNamespace;
       if (parent && ns === 2) {
@@ -18151,7 +17916,6 @@ Use a v-bind binding combined with a v-on listener that emits update:x event ins
 
   const isEventOptionModifier = /* @__PURE__ */ makeMap(`passive,once,capture`);
   const isNonKeyModifier = /* @__PURE__ */ makeMap(
-    // event propagation management
     `stop,prevent,self,ctrl,shift,alt,meta,exact,middle`
   );
   const maybeKeyModifier = /* @__PURE__ */ makeMap("left,right");
@@ -18343,14 +18107,12 @@ Use a v-bind binding combined with a v-on listener that emits update:x event ins
     ]),
     optgroup: /* @__PURE__ */ new Set(["option"]),
     select: /* @__PURE__ */ new Set(["optgroup", "option", "hr"]),
-    // table
     table: /* @__PURE__ */ new Set(["caption", "colgroup", "tbody", "tfoot", "thead"]),
     tr: /* @__PURE__ */ new Set(["td", "th"]),
     colgroup: /* @__PURE__ */ new Set(["col"]),
     tbody: /* @__PURE__ */ new Set(["tr"]),
     thead: /* @__PURE__ */ new Set(["tr"]),
     tfoot: /* @__PURE__ */ new Set(["tr"]),
-    // these elements can not have any children elements
     script: emptySet,
     iframe: emptySet,
     option: emptySet,
@@ -18359,11 +18121,9 @@ Use a v-bind binding combined with a v-on listener that emits update:x event ins
     title: emptySet
   };
   const onlyValidParents = {
-    // sections
     html: emptySet,
     body: /* @__PURE__ */ new Set(["html"]),
     head: /* @__PURE__ */ new Set(["html"]),
-    // table
     td: /* @__PURE__ */ new Set(["tr"]),
     colgroup: /* @__PURE__ */ new Set(["table"]),
     caption: /* @__PURE__ */ new Set(["table"]),
@@ -18373,12 +18133,9 @@ Use a v-bind binding combined with a v-on listener that emits update:x event ins
     th: /* @__PURE__ */ new Set(["tr"]),
     thead: /* @__PURE__ */ new Set(["table"]),
     tr: /* @__PURE__ */ new Set(["tbody", "thead", "tfoot"]),
-    // data list
     dd: /* @__PURE__ */ new Set(["dl", "div"]),
     dt: /* @__PURE__ */ new Set(["dl", "div"]),
-    // other
     figcaption: /* @__PURE__ */ new Set(["figure"]),
-    // li: new Set(["ul", "ol"]),
     summary: /* @__PURE__ */ new Set(["details"]),
     area: /* @__PURE__ */ new Set(["map"])
   };
@@ -18491,9 +18248,7 @@ Use a v-bind binding combined with a v-on listener that emits update:x event ins
     html: transformVHtml,
     text: transformVText,
     model: transformModel,
-    // override compiler-core
     on: transformOn,
-    // override compiler-core
     show: transformShow
   };
   function compile(src, options = {}) {
@@ -18501,9 +18256,6 @@ Use a v-bind binding combined with a v-on listener that emits update:x event ins
       src,
       extend({}, parserOptions, options, {
         nodeTransforms: [
-          // ignore <script> and <tag>
-          // this is not put inside DOMNodeTransforms because that list is used
-          // by compiler-ssr to generate vnode fallback branches
           ignoreSideEffectTags,
           ...DOMNodeTransforms,
           ...options.nodeTransforms || []

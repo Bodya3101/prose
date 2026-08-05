@@ -32,7 +32,6 @@ def main():
         except Exception as e:
             logging.error(f"Error creating root_redirect: {e}")
 
-    # РАЗДАЧА ПЛАГИНОВ ЧЕРЕЗ BOTTLE ИЗ ПАПКИ РЯДОМ С PROSE.EXE (Решает 404!)
     plugins_dir = os.path.join(data_dir, 'plugins')
     @bottle.route('/plugins/<filepath:path>')
     def server_plugins(filepath):

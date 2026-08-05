@@ -23,7 +23,6 @@ const app = createApp({
         });
     },
     methods: {
-        // НААТИВНЫЙ ДРАГ WINDOWS ПРИ КЛИКЕ НА ШАПКУ
         startDrag(e) {
             if (e.target.closest('.no-drag')) return;
             if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.start_native_drag === 'function') {

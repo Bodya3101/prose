@@ -4,7 +4,7 @@ import shutil
 import zipfile
 import subprocess
 
-APP_VERSION = "1.0.2"
+APP_VERSION = "1.0.3"
 
 def run_cmd(cmd):
     print(f" Executing: {cmd}")
@@ -50,7 +50,6 @@ def main():
     app_icon_flag = get_icon_flag(root_dir, "logo.ico")
     setup_icon_flag = get_icon_flag(root_dir, "logo_installer.ico")
 
-    # 1. Собираем Prose.exe
     print(f"\n--- 2. Building Prose.exe v{APP_VERSION} ---")
     pyinstaller_app_cmd = (
         f'pyinstaller --noconfirm --onedir --windowed {app_icon_flag}'
@@ -70,7 +69,6 @@ def main():
 
     cleanup_pycache(prose_dist_dir)
 
-    # 2. Упаковываем Portable ZIP
     print(f"\n--- 3. Packing Prose_v{APP_VERSION}_Portable.zip ---")
     zip_portable_path = os.path.join(dist_dir, f"Prose_v{APP_VERSION}_Portable.zip")
     with zipfile.ZipFile(zip_portable_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
@@ -80,7 +78,6 @@ def main():
                 rel_file = os.path.relpath(abs_file, prose_dist_dir)
                 zipf.write(abs_file, rel_file)
 
-    # 3. Собираем облегченный установщик (Исключены тяжелые сторонние библиотки для 5x ускорения запуска)
     print("\n--- 4. Building Prose_Setup.exe (Optimized) ---")
     excludes = "--exclude-module PyQt5 --exclude-module numpy --exclude-module pydantic --exclude-module matplotlib"
     pyinstaller_setup_cmd = (

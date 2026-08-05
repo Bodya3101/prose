@@ -6,15 +6,78 @@ import CreateProject from './components/CreateProject.js';
 import SettingsView from './components/Settings.js'; 
 import AboutView from './components/About.js';
 import PluginsView from './components/Plugins.js';
+import ProjectSettingsModal from './components/ProjectSettingsModal.js';
 
 const app = createApp({
+    computed: {
+        currentEntryCharCount() {
+            const data = store.currentEntryData || {};
+            const sys = store.activeProject && store.activeProject.use_single_prompt 
+                ? (store.activeProject.global_system_prompt || '') 
+                : (data.system || '');
+            const user = data.user || '';
+            const thought = data.thought || '';
+            const asst = data.assistant || '';
+            return sys.length + user.length + thought.length + asst.length;
+        },
+        
+        currentEntryTokenCount() {
+            const data = store.currentEntryData || {};
+            const sys = store.activeProject && store.activeProject.use_single_prompt 
+                ? (store.activeProject.global_system_prompt || '') 
+                : (data.system || '');
+            const fullText = sys + (data.user || '') + (data.thought || '') + (data.assistant || '');
+            if (!fullText) return 0;
+
+            const presetId = (store.activeProject && store.activeProject.tokenizer_preset) || 'llama3';
+            const tokenizer = store.tokenizers[presetId] || store.tokenizers['llama3'];
+
+            if (tokenizer.calcFunc) {
+                try {
+                    return Math.ceil(tokenizer.calcFunc(fullText));
+                } catch (e) {
+                    console.error("Plugin tokenizer error:", e);
+                }
+            }
+
+            let tokens = 0;
+            const cyrCoeff = tokenizer.cyrillic || 0.8;
+            const latCoeff = tokenizer.latin || 0.25;
+            const specCoeff = tokenizer.special || 0.35;
+
+            for (let i = 0; i < fullText.length; i++) {
+                const code = fullText.charCodeAt(i);
+                if ((code >= 0x0400 && code <= 0x04FF) || (code >= 0x0500 && code <= 0x052F)) {
+                    tokens += cyrCoeff;
+                } else if ((code >= 65 && code <= 90) || (code >= 97 && code <= 122)) {
+                    tokens += latCoeff;
+                } else {
+                    tokens += specCoeff;
+                }
+            }
+            return Math.ceil(tokens);
+        },
+
+        activeTokenizerTag() {
+            const presetId = (store.activeProject && store.activeProject.tokenizer_preset) || 'llama3';
+            const tokenizer = store.tokenizers[presetId] || store.tokenizers['llama3'];
+            return tokenizer.tag || 'Llama 3';
+        },
+
+        activeTokenizerName() {
+            const presetId = (store.activeProject && store.activeProject.tokenizer_preset) || 'llama3';
+            const tokenizer = store.tokenizers[presetId] || store.tokenizers['llama3'];
+            return tokenizer.name || 'Llama 3';
+        }
+    },
+
     components: {
         Home,
         Editor,
         CreateProject,
         SettingsView,
         AboutView,
-        PluginsView 
+        PluginsView
     },
     setup() {
         return { store };
@@ -39,10 +102,7 @@ const app = createApp({
         async loadSettings() {
             if (!window.pywebview) return;
             store.settings = await window.pywebview.api.get_settings();
-            
             this.applyTheme();
-            
-            // Загружаем сохраненный язык через наш новый реактивный метод
             await store.setLanguage(store.settings.language || 'ru');
         },
         
@@ -98,9 +158,13 @@ const app = createApp({
         
         openSettings() { store.currentView = 'settings'; },
         openPlugins() { store.currentView = 'plugins'; },
-        openAbout() { store.currentView = 'about'; }
+        openAbout() { store.currentView = 'about'; },
+        openProjectSettings() { store.active_overlay = 'ProjectSettingsModal'; }
     }
 });
+
+app.component('ProjectSettingsModal', ProjectSettingsModal);
+app.component('project-settings-modal', ProjectSettingsModal);
 
 window.app = app;
 window.app_store = store;
