@@ -91,3 +91,127 @@
     0% { opacity: 0.5; }
     100% { opacity: 1; }
 }
+
+/* Configurable mass generation modes */
+.or-modes-panel,
+.or-resume-panel {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 15px;
+    border-radius: 10px;
+    border: 1px solid var(--border-main);
+    background: #171717;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.or-modes-heading {
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 1.2px;
+    color: var(--text-main);
+}
+.or-modes-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 14px;
+}
+.or-mode-toggle {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    color: var(--text-main);
+    font-size: 12px;
+    line-height: 1.4;
+    cursor: pointer;
+}
+.or-mode-toggle input {
+    margin: 2px 0 0;
+    accent-color: #4E6DB2;
+    flex: 0 0 auto;
+}
+.or-mode-toggle input:disabled {
+    cursor: not-allowed;
+}
+.or-mode-fields {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+.or-mode-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+    color: #A0A0A0;
+    font-size: 11px;
+    line-height: 1.4;
+}
+.or-mode-field input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px;
+}
+.or-mode-topic textarea {
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 48px;
+}
+.or-mode-note {
+    color: #888;
+    font-size: 10px;
+    line-height: 1.5;
+}
+.or-btn-secondary {
+    width: 100%;
+    border: 1px solid var(--border-main);
+    border-radius: 7px;
+    padding: 9px 12px;
+    background: #252525;
+    color: var(--text-main);
+    cursor: pointer;
+}
+.or-btn-secondary:hover {
+    background: #303030;
+}
+.or-live-progress {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.or-progress-text {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 12px;
+    color: #4D986D;
+}
+.or-progress-text span:last-child {
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+.or-progress-track {
+    width: 100%;
+    height: 7px;
+    overflow: hidden;
+    background: #262626;
+    border-radius: 20px;
+}
+.or-progress-bar-dynamic {
+    height: 100%;
+    background: #4D986D;
+    border-radius: 20px;
+    transition: width 0.2s ease;
+}
+.or-progress-meta {
+    font-size: 11px;
+    color: #A0A0A0;
+}
+@media (max-width: 650px) {
+    .or-modes-grid,
+    .or-mode-fields {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}

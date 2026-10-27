@@ -75,13 +75,19 @@ class OpenRouterPluginValidationTests(unittest.TestCase):
         with patch.object(plugin.keyring, "get_password", return_value="test-secret"):
             with patch.object(plugin.requests, "post", return_value=response) as post:
                 result = plugin.plugin_openrouter_generate_batch(
-                    "Generate a greeting", ["user", "assistant"], {}, 1, "org/model-a", "custom"
+                    "Generate a greeting", ["user", "assistant"], {}, 1, "org/model-a", "custom", {
+                        min_assistant_words: 60, max_output_tokens: 4096,
+                        diversity_enabled: true, topic_plan: "balanced"
+                    }
                 )
         self.assertTrue(result["success"])
         self.assertEqual(result["data"][0]["assistant"], "Hello")
         args, kwargs = post.call_args
         self.assertEqual(args[0], "https://api.example.com/v1/chat/completions")
         self.assertEqual(kwargs["json"]["model"], "org/model-a")
+        self.assertEqual(kwargs["json"]["max_tokens"], 4096)
+        self.assertIn("at least 60 words", kwargs["json"]["messages"][0]["content"])
+        self.assertIn("balanced", kwargs["json"]["messages"][0]["content"])
         self.assertFalse(kwargs["allow_redirects"])
 
 
