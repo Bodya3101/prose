@@ -50,6 +50,19 @@ class OpenRouterPluginValidationTests(unittest.TestCase):
         self.assertEqual(kwargs["headers"]["Authorization"], "Bearer test-secret")
         self.assertFalse(kwargs["allow_redirects"])
 
+    def test_openrouter_model_list_is_public_without_saved_key(self):
+        api = Mock()
+        api.get_settings.return_value = {"plugin_openrouter_provider": "openrouter"}
+        plugin.initialize_plugin(api)
+        response = Mock(status_code=200)
+        response.json.return_value = {"data": [{"id": "org/model-b"}]}
+        with patch.object(plugin.keyring, "get_password", return_value=""):
+            with patch.object(plugin.requests, "get", return_value=response) as get:
+                result = plugin.plugin_openrouter_get_models("openrouter")
+        self.assertTrue(result["success"])
+        self.assertEqual(result["models"], ["org/model-b"])
+        self.assertNotIn("Authorization", get.call_args.kwargs["headers"])
+
     def test_custom_generation_posts_to_chat_completions(self):
         api = Mock()
         api.get_settings.return_value = {

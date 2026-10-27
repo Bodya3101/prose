@@ -121,12 +121,12 @@ def _headers_for(provider, api_key):
     return headers
 
 
-def _provider_config(provider):
+def _provider_config(provider, require_key=False):
     if provider not in ("openrouter", "custom"):
         raise ValueError("Неизвестный провайдер.")
     if provider == "openrouter":
         api_key = _get_openrouter_key()
-        if not api_key.strip():
+        if require_key and not api_key.strip():
             raise ValueError("Ключ OpenRouter не найден в системном хранилище. Сохраните его в настройках Prose.")
         return "https://openrouter.ai/api/v1", api_key
     base_url = _normalize_base_url(_get_setting("plugin_openrouter_custom_base_url", ""))
@@ -229,7 +229,7 @@ def plugin_openrouter_get_models(provider=None):
 
 def plugin_openrouter_generate_batch(generator_prompt: str, empty_fields: list, hardcoded_context: dict, batch_size: int, model_name: str, provider: str = "openrouter") -> dict:
     try:
-        base_url, api_key = _provider_config(provider)
+        base_url, api_key = _provider_config(provider, require_key=True)
         rpm = _validate_rpm(_get_setting("plugin_openrouter_rpm", DEFAULT_RPM))
         if not isinstance(generator_prompt, str) or not generator_prompt.strip():
             return {"success": False, "error": "Опишите задачу для генератора."}
