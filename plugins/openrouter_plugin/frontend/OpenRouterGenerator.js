@@ -11,8 +11,14 @@ export default {
             dontShowAgain: false,
 
             modelsList: ["google/gemma-2-9b-it:free"],
-            selectedModel: "google/gemma-2-9b-it:free", 
-            showModelDropdown: false, 
+            selectedModel: "google/gemma-2-9b-it:free",
+            showModelDropdown: false,
+            provider: 'openrouter',
+            customBaseUrl: '',
+            customApiKey: '',
+            clearCustomKey: false,
+            rpm: 60,
+            providerStatus: '', 
             
             genMode: 'single', 
             batchSize: 5,
@@ -34,22 +40,83 @@ export default {
         }
     },
     async mounted() {
+        this.provider = this.store.settings.plugin_openrouter_provider || 'openrouter';
+        this.customBaseUrl = this.store.settings.plugin_openrouter_custom_base_url || '';
+        this.rpm = Number(this.store.settings.plugin_openrouter_rpm) || 60;
+
         if (this.store.settings.skip_openrouter_disclaimer) {
             this.step = 'dashboard';
         } else {
             this.startTimer();
         }
 
-        if (window.pywebview) {
-            const r = await window.pywebview.api.plugin_openrouter_get_models();
-            if (r.success && r.models.length > 0) this.modelsList = r.models;
-        }
+        if (window.pywebview) await this.loadModels();
     },
     unmounted() {
         if (this.timerInterval) clearInterval(this.timerInterval);
     },
     methods: {
         close() { this.$emit('close'); },
+        async loadModels() {
+            if (!window.pywebview) return;
+            if (this.provider === 'custom' && !this.customBaseUrl.trim()) {
+                this.modelsList = [];
+                this.providerStatus = this.store.t('or_custom_base_url_required', 'Enter and save a custom Base URL to load models.');
+                return;
+            }
+
+            const result = await window.pywebview.api.plugin_openrouter_get_models(this.provider);
+            if (result.success) {
+                this.modelsList = result.models || [];
+                this.providerStatus = this.modelsList.length
+                    ? this.store.t('or_models_loaded', 'Models loaded.')
+                    : this.store.t('or_models_empty', 'Provider returned no models; you can enter a model ID manually.');
+                if (this.modelsList.length && !this.modelsList.includes(this.selectedModel)) {
+                    this.selectedModel = this.modelsList[0];
+                }
+            } else {
+                this.modelsList = [];
+                this.providerStatus = result.error || this.store.t('or_models_error', 'Could not load models.');
+            }
+        },
+        async providerChanged() {
+            this.modelsList = [];
+            if (this.provider === 'openrouter') {
+                await this.loadModels();
+            } else {
+                this.providerStatus = this.store.t('or_custom_save_first', 'Save the custom provider settings to load its models.');
+                if (this.customBaseUrl.trim() && this.customBaseUrl === this.store.settings.plugin_openrouter_custom_base_url) {
+                    await this.loadModels();
+                }
+            }
+        },
+        async persistProviderSettings(refreshModels = true) {
+            if (!window.pywebview) return false;
+            const result = await window.pywebview.api.plugin_openrouter_save_config(
+                this.provider,
+                this.customBaseUrl,
+                this.customApiKey,
+                this.rpm,
+                this.clearCustomKey
+            );
+            if (!result.success) {
+                this.providerStatus = result.error || this.store.t('or_settings_error', 'Could not save provider settings.');
+                await this.store.showAlert(
+                    this.store.t('alert_error_title', 'Error'),
+                    this.providerStatus
+                );
+                return false;
+            }
+
+            this.store.settings.plugin_openrouter_provider = this.provider;
+            this.store.settings.plugin_openrouter_rpm = Number(result.rpm) || Number(this.rpm) || 60;
+            this.store.settings.plugin_openrouter_custom_base_url = result.base_url || this.customBaseUrl;
+            this.customApiKey = '';
+            this.clearCustomKey = false;
+            this.providerStatus = this.store.t('or_settings_saved', 'Provider settings saved.');
+            if (refreshModels) await this.loadModels();
+            return true;
+        },
         startTimer() {
             this.timerInterval = setInterval(() => {
                 if (this.countdown > 0) this.countdown--;
@@ -80,6 +147,8 @@ export default {
                 return; 
             }
             
+            if (!await this.persistProviderSettings(false)) return;
+
             this.isGenerating = true;
             this.statusMessage = "Analyzing fields...";
 
@@ -131,7 +200,8 @@ export default {
                 emptyFields,
                 hardcodedContext,
                 count,
-                this.selectedModel.trim() 
+                this.selectedModel.trim(),
+                this.provider
             );
 
             if (r.success && Array.isArray(r.data)) {
@@ -200,9 +270,43 @@ export default {
                 <textarea v-model="generatorPrompt" class="message-textarea" style="min-height: 50px; border-color: #4E6DB2;" :placeholder="store.t('or_prompt_placeholder', 'Describe what to generate...')"></textarea>
             </div>
 
+            <div style="display: flex; gap: 15px; width: 100%; align-items: flex-end;">
+                <div style="display: flex; flex-direction: column; gap: 5px; flex: 1;">
+                    <span style="font-size: 12px; color: #A0A0A0;">{{ store.t('or_provider_label', 'Provider:') }}</span>
+                    <select v-model="provider" @change="providerChanged" class="message-textarea" style="min-height: auto; padding: 8px; font-size: 12px; width: 100%;">
+                        <option value="openrouter">{{ store.t('or_provider_openrouter', 'OpenRouter') }}</option>
+                        <option value="custom">{{ store.t('or_provider_custom', 'Custom OpenAI-compatible') }}</option>
+                    </select>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 5px; width: 120px;">
+                    <span style="font-size: 12px; color: #A0A0A0;">{{ store.t('or_rpm_label', 'RPM (requests/min):') }}</span>
+                    <input type="number" v-model.number="rpm" min="1" max="600" step="1" class="cm-hex-input-box" style="width: 100%; padding: 8px; font-size: 16px; text-align: center;">
+                </div>
+            </div>
+
+            <div v-if="provider === 'custom'" style="display: flex; flex-direction: column; gap: 8px; width: 100%; padding: 12px; border: 1px solid var(--border-main); border-radius: 8px;">
+                <label style="display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: #A0A0A0;">
+                    {{ store.t('or_custom_base_url_label', 'OpenAI-compatible Base URL:') }}
+                    <input type="url" v-model.trim="customBaseUrl" class="message-textarea" style="min-height: auto; padding: 8px; font-size: 12px;" :placeholder="store.t('or_custom_base_url_ph', 'https://api.example.com/v1 or http://localhost:1234/v1')">
+                </label>
+                <label style="display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: #A0A0A0;">
+                    {{ store.t('or_custom_api_key_label', 'API key (optional for local servers):') }}
+                    <input type="password" v-model="customApiKey" @input="clearCustomKey = false" autocomplete="off" class="message-textarea" style="min-height: auto; padding: 8px; font-size: 12px;" :placeholder="store.t('or_custom_api_key_ph', 'Leave blank to keep the saved key')">
+                </label>
+                <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #A0A0A0;">
+                    <input type="checkbox" v-model="clearCustomKey">
+                    {{ store.t('or_clear_custom_key', 'Remove saved custom API key') }}
+                </label>
+            </div>
+
+            <button class="btn-primary" @click="persistProviderSettings()" style="width: 100%; padding: 9px; font-size: 13px;">
+                {{ store.t('or_save_provider', 'Save provider settings') }}
+            </button>
+            <div v-if="providerStatus" style="width: 100%; font-size: 12px; color: #A0A0A0; overflow-wrap: anywhere;">{{ providerStatus }}</div>
+
             <div style="display: flex; gap: 15px; width: 100%;">
                 <div style="display: flex; flex-direction: column; gap: 5px; flex: 1; position: relative;">
-                    <span style="font-size: 12px; color: #A0A0A0;">{{ store.t('or_model_label', 'OpenRouter Model:') }}</span>
+                    <span style="font-size: 12px; color: #A0A0A0;">{{ store.t('or_model_id_label', 'Model ID:') }}</span>
                     <input type="text" 
                            v-model="selectedModel" 
                            @focus="showModelDropdown = true" 
