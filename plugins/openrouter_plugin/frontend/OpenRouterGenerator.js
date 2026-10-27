@@ -137,12 +137,18 @@ export default {
             if (selected.length > remaining) errors.push(this.store.t('or_attachment_limit', 'You can attach up to 5 files.'));
             this.isReadingAttachments = true;
             this.attachmentStatus = this.store.t('or_attachment_reading', 'Reading documents locally...');
+            let totalSize = 0;
             try {
                 for (const file of files) {
                     if (file.size > 8 * 1024 * 1024) {
                         errors.push(file.name + ': ' + this.store.t('or_attachment_too_large', 'Maximum size per file is 8 MB.'));
                         continue;
                     }
+                    if (totalSize + file.size > 20 * 1024 * 1024) {
+                        errors.push(this.store.t('or_attachment_total_too_large', 'Total attachment size must not exceed 20 MB.'));
+                        continue;
+                    }
+                    totalSize += file.size;
                     try {
                         const encoded = await new Promise((resolve, reject) => {
                             const reader = new FileReader();

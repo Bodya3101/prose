@@ -15,5 +15,6 @@
   "or_attachment_restored": "Source documents restored from the checkpoint.",
   "or_attachment_privacy": "File binaries stay on your computer; extracted text is sent to the selected API provider with each generation request.",
   "or_custom_key_stored": "Custom API key is saved in the OS credential store.",
-  "or_custom_key_missing": "No custom API key saved. Enter one above; local APIs may not require it."
+  "or_custom_key_missing": "No custom API key saved. Enter one above; local APIs may not require it.",
+  "or_attachment_total_too_large": "Total attachment size must not exceed 20 MB."
 }
