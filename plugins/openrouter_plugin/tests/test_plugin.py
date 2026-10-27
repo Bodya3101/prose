@@ -34,6 +34,17 @@ class OpenRouterPluginValidationTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     plugin._validate_rpm(rpm)
 
+    def test_rpm_limiter_waits_for_the_rolling_window(self):
+        bucket = "test-rpm-limiter"
+        plugin._request_timestamps.pop(bucket, None)
+        with patch.object(plugin.time, "monotonic", side_effect=[0.0, 0.0, 60.1]):
+            with patch.object(plugin.time, "sleep") as sleep:
+                plugin._rate_limit(1, bucket)
+                plugin._rate_limit(1, bucket)
+        self.assertEqual(sleep.call_count, 1)
+        self.assertGreaterEqual(sleep.call_args.args[0], 59.9)
+        plugin._request_timestamps.pop(bucket, None)
+
     def test_custom_model_request_uses_key_and_disables_redirects(self):
         api = Mock()
         api.get_settings.return_value = {"plugin_openrouter_custom_base_url": "https://api.example.com/v1"}

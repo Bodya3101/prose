@@ -327,7 +327,6 @@ export default {
                         return savedCount;
                     }
                     savedCount += accepted.length;
-                    retries = 0;
                 }
 
                 if (savedCount < wantedCount && !this.cancelRequested) {
