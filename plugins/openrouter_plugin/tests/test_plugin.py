@@ -52,8 +52,10 @@ class OpenRouterPluginValidationTests(unittest.TestCase):
         response = Mock(status_code=200)
         response.json.return_value = {"data": [{"id": "org/model-a"}]}
         with patch.object(plugin.keyring, "get_password", return_value="test-secret"):
-            with patch.object(plugin.requests, "get", return_value=response) as get:
-                result = plugin.plugin_openrouter_get_models("custom")
+            with patch.object(plugin, "_rate_limit") as rate_limit:
+                with patch.object(plugin.requests, "get", return_value=response) as get:
+                    result = plugin.plugin_openrouter_get_models("custom")
+        rate_limit.assert_called_once_with(60, "custom:https://api.example.com/v1")
         self.assertTrue(result["success"])
         self.assertEqual(result["models"], ["org/model-a"])
         args, kwargs = get.call_args

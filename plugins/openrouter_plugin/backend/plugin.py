@@ -201,6 +201,8 @@ def plugin_openrouter_get_models(provider=None):
     try:
         provider = provider or _get_setting("plugin_openrouter_provider", "openrouter")
         base_url, api_key = _provider_config(provider)
+        rpm = _validate_rpm(_get_setting("plugin_openrouter_rpm", DEFAULT_RPM))
+        _rate_limit(rpm, f"{provider}:{base_url.rstrip('/')}")
         response = requests.get(
             f"{base_url.rstrip('/')}/models",
             headers=_headers_for(provider, api_key),
