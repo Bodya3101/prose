@@ -256,7 +256,7 @@ export default {
         },
         async appendEntries(entries, state) {
             const task = this.saveQueue.then(async () => {
-                if (!entries.length || this.cancelRequested) return;
+                if (!entries.length) return;
                 const indexToSave = this.$parent.totalEntries;
                 let saved;
                 if (window.pywebview.api.save_dataset_entries) {
