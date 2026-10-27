@@ -456,8 +456,8 @@ class DesktopApi:
 
         try:
             # This fast path is deliberately append-only: it never overwrites old rows.
-            if not isinstance(index, int) or index != len(self.line_offsets):
-                return {"success": False, "error": "Dataset changed during generation. Reload the active dataset before saving more entries."}
+            if not isinstance(index, int) or index < len(self.line_offsets):
+                return {"success": False, "error": "Bulk saving can append entries only; reload the active dataset before overwriting rows."}
 
             lines = []
             for new_data in entries:
