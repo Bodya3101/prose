@@ -447,6 +447,44 @@ class DesktopApi:
         except Exception as e:
             return {"error": str(e)}
 
+    def save_dataset_entries(self, index: int, entries: list) -> dict:
+        """Append a batch of canonical dataset entries and reindex only once."""
+        if not self.current_file_path:
+            return {"success": False, "error": "No file."}
+        if not isinstance(entries, list) or not entries or len(entries) > 100:
+            return {"success": False, "error": "Batch must contain between 1 and 100 entries."}
+
+        try:
+            # This fast path is deliberately append-only: it never overwrites old rows.
+            if not isinstance(index, int) or index != len(self.line_offsets):
+                return {"success": False, "error": "Dataset changed during generation. Reload the active dataset before saving more entries."}
+
+            lines = []
+            for new_data in entries:
+                if not isinstance(new_data, dict):
+                    return {"success": False, "error": "Every dataset entry must be an object."}
+                clean_canonical = {
+                    "system": str(new_data.get("system", "")),
+                    "user": str(new_data.get("user", "")),
+                    "assistant": str(new_data.get("assistant", ""))
+                }
+                if "thought" in new_data:
+                    clean_canonical["thought"] = str(new_data.get("thought", ""))
+                formatted_json = self.format_manager.from_canonical(
+                    clean_canonical, self.current_project_format
+                )
+                lines.append(json.dumps(formatted_json, ensure_ascii=False) + "\n")
+
+            with open(self.current_file_path, "a", encoding="utf-8", newline="") as output:
+                output.write("".join(lines))
+                output.flush()
+                os.fsync(output.fileno())
+
+            self._reindex_current_file()
+            return {"success": True, "count": len(lines)}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
     def save_dataset_entry(self, index: int, new_data: dict) -> dict:
         if not self.current_file_path: return {"error": "No file."}
 

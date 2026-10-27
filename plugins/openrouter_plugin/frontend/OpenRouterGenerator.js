@@ -232,7 +232,8 @@ export default {
             }
 
             if (state.duplicateCheckEnabled) {
-                const normalized = this.normalizedPrompt(payload.user);
+                const dedupeSource = context.emptyFields.includes('user') ? payload.user : JSON.stringify(payload);
+                const normalized = this.normalizedPrompt(dedupeSource);
                 if (!normalized) return false;
                 if (state.seenPromptSet.has(normalized)) return false;
                 const tokens = normalized.split(' ').filter(word => word.length > 2);
@@ -255,16 +256,24 @@ export default {
         },
         async appendEntries(entries, state) {
             const task = this.saveQueue.then(async () => {
-                for (const payload of entries) {
-                    if (this.cancelRequested) break;
-                    const indexToSave = this.$parent.totalEntries;
-                    const saved = await window.pywebview.api.save_dataset_entry(indexToSave, payload);
-                    if (saved && saved.success === false) throw new Error(saved.error || 'Could not save dataset entry.');
-                    this.$parent.totalEntries++;
-                    state.completed++;
-                    this.progressCompleted = state.completed;
-                    if (state.autoSaveResume && state.queueEnabled) await this.persistCheckpoint(state, 'running');
+                if (!entries.length || this.cancelRequested) return;
+                const indexToSave = this.$parent.totalEntries;
+                let saved;
+                if (window.pywebview.api.save_dataset_entries) {
+                    saved = await window.pywebview.api.save_dataset_entries(indexToSave, entries);
+                } else {
+                    // Compatibility fallback for older Prose builds.
+                    for (let offset = 0; offset < entries.length; offset++) {
+                        saved = await window.pywebview.api.save_dataset_entry(indexToSave + offset, entries[offset]);
+                        if (!saved || saved.success !== true) throw new Error((saved && saved.error) || 'Could not save dataset entry.');
+                    }
+                    saved = { success: true, count: entries.length };
                 }
+                if (!saved || saved.success !== true) throw new Error((saved && saved.error) || 'Could not save dataset batch.');
+                this.$parent.totalEntries += entries.length;
+                state.completed += entries.length;
+                this.progressCompleted = state.completed;
+                if (state.autoSaveResume && state.queueEnabled) await this.persistCheckpoint(state, 'running');
             });
             this.saveQueue = task.catch(() => {});
             return task;
@@ -450,7 +459,10 @@ export default {
                 ? Math.max(1, Math.min(10000, Number(resumeCheckpoint ? resumeCheckpoint.target_count : this.targetCount) || 1000))
                 : Math.max(1, Math.min(100, Number(this.batchSize) || 1));
             const batchSize = Math.max(1, Math.min(100, Number(resumeCheckpoint ? resumeCheckpoint.batch_size : this.batchSize) || 10));
-            const completed = resumeCheckpoint ? Math.max(0, Number(resumeCheckpoint.completed) || 0) : 0;
+            const resumeDiskCount = resumeCheckpoint && Number.isFinite(Number(resumeCheckpoint.initial_total))
+                ? Math.max(0, Number(this.$parent.totalEntries) - Number(resumeCheckpoint.initial_total)) : 0;
+            const completed = resumeCheckpoint
+                ? Math.max(0, Number(resumeCheckpoint.completed) || 0, resumeDiskCount) : 0;
             if (completed > targetTotal) {
                 await this.store.showAlert(this.store.t('alert_error_title', 'Error'), this.store.t('or_checkpoint_invalid', 'Checkpoint progress exceeds the target. Start a new generation.'));
                 return;
@@ -463,6 +475,8 @@ export default {
                 project_name: identity.projectName,
                 dataset_name: identity.datasetName,
                 target_count: targetTotal,
+                initial_total: resumeCheckpoint && Number.isFinite(Number(resumeCheckpoint.initial_total))
+                    ? Number(resumeCheckpoint.initial_total) : Number(this.$parent.totalEntries) - completed,
                 batch_size: batchSize,
                 generator_prompt: resumeCheckpoint ? resumeCheckpoint.generator_prompt : this.generatorPrompt,
                 model: resumeCheckpoint ? resumeCheckpoint.model : this.selectedModel.trim(),
@@ -775,11 +789,6 @@ export default {
                 </div>
             </div>
 
-            <div v-if="isGenerating" style="width: 100%; text-align: center;">
-                <span style="font-size: 12px; color: #4D986D; font-weight: bold;">{{ statusMessage }}</span>
-                <div class="or-progress-bar"><div class="or-progress-fill" style="width: 100%; animation: pulse 1s infinite alternate;"></div></div>
-            </div>
-            
             <button class="btn-primary" @click="startGeneration" :disabled="isGenerating" style="width: 100%; padding: 12px; font-size: 16px;">
                 {{ isGenerating ? store.t('or_btn_thinking', 'AI is thinking...') : store.t('or_btn_start', 'Start Generation') }}
             </button>
