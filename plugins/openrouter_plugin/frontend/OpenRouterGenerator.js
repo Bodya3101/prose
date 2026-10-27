@@ -395,110 +395,189 @@ export default {
             }
             this.step = 'dashboard';
         },
-        async startGeneration() {
-            if (!this.generatorPrompt.trim()) { 
-                await this.store.showAlert(
-                    this.store.t('alert_error_title', 'Error'), 
-                    this.store.t('or_err_no_prompt', 'Please describe the task to the generator!')
-                ); 
-                return; 
+        async startGeneration(resumeCheckpoint = null) {
+            if (this.isGenerating) return;
+            if (!resumeCheckpoint && this.pendingCheckpoint) {
+                const shouldResume = await this.store.showConfirm(
+                    this.store.t('or_resume_title', 'Resume previous generation?'),
+                    this.store.t('or_resume_message', 'An unfinished generation checkpoint exists for this dataset. Resume it instead of starting a new run?')
+                );
+                if (shouldResume) return this.resumePreviousGeneration();
+                this.pendingCheckpoint = null;
             }
-            if (!this.selectedModel.trim()) { 
-                await this.store.showAlert(
-                    this.store.t('alert_error_title', 'Error'), 
-                    this.store.t('or_err_no_model', 'Please select or enter a model ID!')
-                ); 
-                return; 
+
+            if (!this.generatorPrompt.trim()) {
+                await this.store.showAlert(this.store.t('alert_error_title', 'Error'), this.store.t('or_err_no_prompt', 'Please describe the task to the generator!'));
+                return;
             }
-            
+            if (!this.selectedModel.trim()) {
+                await this.store.showAlert(this.store.t('alert_error_title', 'Error'), this.store.t('or_err_no_model', 'Please select or enter a model ID!'));
+                return;
+            }
             if (!await this.persistProviderSettings(false)) return;
 
-            this.isGenerating = true;
-            this.statusMessage = "Analyzing fields...";
-
-            const emptyFields = [];
-            const hardcodedContext = {};
-
-            if (!this.hardcodeFields.system.trim() && !this.store.activeProject.use_single_prompt) {
-                emptyFields.push("system");
-            } else {
-                hardcodedContext.system = this.store.activeProject.use_single_prompt 
-                    ? (this.store.activeProject.global_system_prompt || "") 
-                    : this.hardcodeFields.system;
-            }
-
-            if (!this.hardcodeFields.user.trim()) {
-                emptyFields.push("user");
-            } else {
-                hardcodedContext.user = this.hardcodeFields.user;
-            }
-
-            if (this.store.activeProject.use_thinking) {
-                if (!this.hardcodeFields.thought.trim()) {
-                    emptyFields.push("thought");
+            const identity = this.projectDatasetIdentity();
+            const emptyFields = resumeCheckpoint ? (resumeCheckpoint.empty_fields || []) : [];
+            const hardcodedContext = resumeCheckpoint ? (resumeCheckpoint.hardcoded_context || {}) : {};
+            if (!resumeCheckpoint) {
+                if (!this.hardcodeFields.system.trim() && !this.store.activeProject.use_single_prompt) {
+                    emptyFields.push('system');
                 } else {
-                    hardcodedContext.thought = this.hardcodeFields.thought;
+                    hardcodedContext.system = this.store.activeProject.use_single_prompt
+                        ? (this.store.activeProject.global_system_prompt || '')
+                        : this.hardcodeFields.system;
                 }
+                if (!this.hardcodeFields.user.trim()) emptyFields.push('user');
+                else hardcodedContext.user = this.hardcodeFields.user;
+                if (this.store.activeProject.use_thinking) {
+                    if (!this.hardcodeFields.thought.trim()) emptyFields.push('thought');
+                    else hardcodedContext.thought = this.hardcodeFields.thought;
+                }
+                if (!this.hardcodeFields.assistant.trim()) emptyFields.push('assistant');
+                else hardcodedContext.assistant = this.hardcodeFields.assistant;
             }
-
-            if (!this.hardcodeFields.assistant.trim()) {
-                emptyFields.push("assistant");
-            } else {
-                hardcodedContext.assistant = this.hardcodeFields.assistant;
-            }
-
-            if (emptyFields.length === 0) {
-                await this.store.showAlert(
-                    this.store.t('alert_warning_title', 'Warning'), 
-                    this.store.t('or_err_all_hardcoded', 'All fields are fixed! AI has nothing to generate.')
-                );
-                this.isGenerating = false;
+            if (!emptyFields.length) {
+                await this.store.showAlert(this.store.t('alert_warning_title', 'Warning'), this.store.t('or_err_all_hardcoded', 'All fields are fixed! AI has nothing to generate.'));
                 return;
             }
 
-            const count = Math.max(1, parseInt(this.batchSize) || 1);
-            this.statusMessage = `Generating batch of ${count} entries...`;
+            await this.saveGenerationModes();
+            const options = resumeCheckpoint && resumeCheckpoint.generation_options
+                ? resumeCheckpoint.generation_options : this.buildGenerationOptions();
+            const queueMode = resumeCheckpoint ? resumeCheckpoint.queue_enabled === true : this.queueEnabled;
+            const autoSave = resumeCheckpoint ? resumeCheckpoint.auto_save_resume === true : this.autoSaveResume;
+            const targetTotal = queueMode
+                ? Math.max(1, Math.min(10000, Number(resumeCheckpoint ? resumeCheckpoint.target_count : this.targetCount) || 1000))
+                : Math.max(1, Math.min(100, Number(this.batchSize) || 1));
+            const batchSize = Math.max(1, Math.min(100, Number(resumeCheckpoint ? resumeCheckpoint.batch_size : this.batchSize) || 10));
+            const completed = resumeCheckpoint ? Math.max(0, Number(resumeCheckpoint.completed) || 0) : 0;
+            if (completed > targetTotal) {
+                await this.store.showAlert(this.store.t('alert_error_title', 'Error'), this.store.t('or_checkpoint_invalid', 'Checkpoint progress exceeds the target. Start a new generation.'));
+                return;
+            }
 
-            const r = await window.pywebview.api.plugin_openrouter_generate_batch(
-                this.generatorPrompt,
+            const modes = {};
+            for (const key of this.modeKeys()) modes[key] = this[key];
+            const checkpointBase = {
+                project_id: identity.projectId,
+                project_name: identity.projectName,
+                dataset_name: identity.datasetName,
+                target_count: targetTotal,
+                batch_size: batchSize,
+                generator_prompt: resumeCheckpoint ? resumeCheckpoint.generator_prompt : this.generatorPrompt,
+                model: resumeCheckpoint ? resumeCheckpoint.model : this.selectedModel.trim(),
+                provider: resumeCheckpoint ? resumeCheckpoint.provider : this.provider,
+                custom_base_url: this.customBaseUrl,
+                rpm: this.rpm,
+                hardcode_fields: Object.assign({}, this.hardcodeFields),
+                hardcoded_context: hardcodedContext,
+                empty_fields: emptyFields,
+                use_thinking: resumeCheckpoint ? resumeCheckpoint.use_thinking === true : this.store.activeProject.use_thinking === true,
+                generation_options: options,
+                generation_modes: modes,
+                queue_enabled: queueMode,
+                auto_save_resume: autoSave
+            };
+            const context = {
+                generatorPrompt: checkpointBase.generator_prompt,
                 emptyFields,
                 hardcodedContext,
-                count,
-                this.selectedModel.trim(),
-                this.provider
-            );
+                model: checkpointBase.model,
+                provider: checkpointBase.provider,
+                generationOptions: options,
+                useThinking: checkpointBase.use_thinking
+            };
+            const maxConcurrency = this.parallelEnabled ? Math.max(1, Math.min(10, Number(this.maxConcurrency) || 1)) : 1;
+            const state = {
+                activeRequests: 0,
+                currentConcurrency: maxConcurrency,
+                maxConcurrency,
+                successStreak: 0,
+                adaptiveSpeed: this.adaptiveSpeed,
+                autoRetry: this.autoRetry,
+                maxRetries: Math.max(0, Math.min(10, Number(this.maxRetries) || 0)),
+                autoSaveResume: autoSave,
+                queueEnabled: queueMode,
+                qualityCheckEnabled: this.qualityCheckEnabled,
+                duplicateCheckEnabled: this.duplicateCheckEnabled,
+                diversityEnabled: this.diversityEnabled,
+                minAssistantWords: Math.max(0, Math.min(2000, Number(options.min_assistant_words) || 0)),
+                completed,
+                targetTotal,
+                rejectedCount: 0,
+                failedChunks: 0,
+                lastError: '',
+                seenPromptSet: new Set(),
+                seenPrompts: [],
+                checkpoint: checkpointBase
+            };
 
-            if (r.success && Array.isArray(r.data)) {
-                this.statusMessage = "Merging context and saving...";
-                
-                for (const aiEntry of r.data) {
-                    const indexToSave = this.$parent.totalEntries;
-                    
-                    const finalPayload = {
-                        system: hardcodedContext.system ? hardcodedContext.system : (aiEntry.system || ""),
-                        user: hardcodedContext.user ? hardcodedContext.user : (aiEntry.user || ""),
-                        assistant: hardcodedContext.assistant ? hardcodedContext.assistant : (aiEntry.assistant || "")
-                    };
-                    
-                    if (this.store.activeProject.use_thinking) {
-                        finalPayload.thought = hardcodedContext.thought ? hardcodedContext.thought : (aiEntry.thought || "");
-                    }
+            this.isGenerating = true;
+            this.cancelRequested = false;
+            this.failedChunks = 0;
+            this.rejectedCount = 0;
+            this.progressTotal = targetTotal;
+            this.progressCompleted = completed;
+            this.statusMessage = this.store.t('or_generation_starting', 'Preparing generation queue...');
+            this.pendingCheckpoint = null;
 
-                    await window.pywebview.api.save_dataset_entry(indexToSave, finalPayload);
-                    this.$parent.totalEntries++; 
+            try {
+                if (queueMode && autoSave) {
+                    await this.persistCheckpoint(state, 'running');
+                } else if (window.pywebview) {
+                    await window.pywebview.api.update_setting('plugin_openrouter_checkpoint', {});
+                    this.store.settings.plugin_openrouter_checkpoint = {};
                 }
-                
-                this.$parent.currentEntryIndex = this.$parent.totalEntries - 1;
-                await this.$parent.loadEntry(this.$parent.currentEntryIndex);
-                
-                this.statusMessage = "Done!";
-                setTimeout(() => { this.close(); }, 1500);
-            } else {
-                await this.store.showAlert(
-                    this.store.t('alert_error_title', 'Error'), 
-                    r.error || "Invalid AI response format"
-                );
+
+                const remaining = Math.max(0, targetTotal - completed);
+                const chunks = [];
+                if (!queueMode) {
+                    chunks.push(batchSize);
+                } else {
+                    for (let count = remaining; count > 0; count -= batchSize) chunks.push(Math.min(batchSize, count));
+                }
+
+                let nextChunk = 0;
+                const workerCount = queueMode ? (this.parallelEnabled ? maxConcurrency : 1) : 1;
+                const worker = async () => {
+                    while (!this.cancelRequested) {
+                        const chunkIndex = nextChunk++;
+                        if (chunkIndex >= chunks.length) return;
+                        await this.generateChunk(chunks[chunkIndex], context, state);
+                    }
+                };
+                await Promise.all(Array.from({length: workerCount}, () => worker()));
+                await this.saveQueue;
+
+                const complete = state.completed >= targetTotal && !state.failedChunks && !this.cancelRequested;
+                if (queueMode && autoSave) await this.persistCheckpoint(state, complete ? 'completed' : 'paused');
+                if (this.$parent.totalEntries > 0 && state.completed > completed) {
+                    this.$parent.currentEntryIndex = this.$parent.totalEntries - 1;
+                    await this.$parent.loadEntry(this.$parent.currentEntryIndex);
+                }
+
+                if (this.cancelRequested) {
+                    this.statusMessage = this.store.t('or_generation_paused', 'Paused. Saved records are safe; you can resume from the checkpoint.');
+                } else if (complete) {
+                    this.statusMessage = this.store.t('or_generation_complete', 'Generation complete.') + ' ' +
+                        state.completed + ' / ' + targetTotal + '. ' +
+                        this.store.t('or_rejected_count', 'Rejected low-quality/duplicate examples:') + ' ' + state.rejectedCount;
+                } else {
+                    this.statusMessage = this.store.t('or_generation_partial', 'Generation stopped with incomplete batches.') +
+                        ' ' + state.completed + ' / ' + targetTotal + '. ' +
+                        this.store.t('or_failed_batches', 'Failed batches:') + ' ' + state.failedChunks +
+                        (state.lastError ? '. ' + state.lastError : '');
+                    if (queueMode && autoSave) this.pendingCheckpoint = this.store.settings.plugin_openrouter_checkpoint;
+                }
+            } catch (error) {
+                this.statusMessage = this.store.t('or_generation_error', 'Generation error:') + ' ' + String(error.message || error);
+                if (queueMode && autoSave) {
+                    await this.persistCheckpoint(state, 'paused');
+                    this.pendingCheckpoint = this.store.settings.plugin_openrouter_checkpoint;
+                }
+            } finally {
                 this.isGenerating = false;
+                this.cancelRequested = false;
             }
         }
     },
