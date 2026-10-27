@@ -335,23 +335,20 @@ export default {
             }
             return savedCount;
         },
-        async startTimer() {
+        async loadModels() {
             if (!window.pywebview) return;
             if (this.provider === 'custom' && !this.customBaseUrl.trim()) {
                 this.modelsList = [];
                 this.providerStatus = this.store.t('or_custom_base_url_required', 'Enter and save a custom Base URL to load models.');
                 return;
             }
-
             const result = await window.pywebview.api.plugin_openrouter_get_models(this.provider);
             if (result.success) {
                 this.modelsList = result.models || [];
                 this.providerStatus = this.modelsList.length
                     ? this.store.t('or_models_loaded', 'Models loaded.')
                     : this.store.t('or_models_empty', 'Provider returned no models; you can enter a model ID manually.');
-                if (this.modelsList.length && !this.modelsList.includes(this.selectedModel)) {
-                    this.selectedModel = this.modelsList[0];
-                }
+                if (this.modelsList.length && !this.modelsList.includes(this.selectedModel)) this.selectedModel = this.modelsList[0];
             } else {
                 this.modelsList = [];
                 this.providerStatus = result.error || this.store.t('or_models_error', 'Could not load models.');
@@ -363,29 +360,19 @@ export default {
                 await this.loadModels();
             } else {
                 this.providerStatus = this.store.t('or_custom_save_first', 'Save the custom provider settings to load its models.');
-                if (this.customBaseUrl.trim() && this.customBaseUrl === this.store.settings.plugin_openrouter_custom_base_url) {
-                    await this.loadModels();
-                }
+                if (this.customBaseUrl.trim() && this.customBaseUrl === this.store.settings.plugin_openrouter_custom_base_url) await this.loadModels();
             }
         },
         async persistProviderSettings(refreshModels = true) {
             if (!window.pywebview) return false;
             const result = await window.pywebview.api.plugin_openrouter_save_config(
-                this.provider,
-                this.customBaseUrl,
-                this.customApiKey,
-                this.rpm,
-                this.clearCustomKey
+                this.provider, this.customBaseUrl, this.customApiKey, this.rpm, this.clearCustomKey
             );
             if (!result.success) {
                 this.providerStatus = result.error || this.store.t('or_settings_error', 'Could not save provider settings.');
-                await this.store.showAlert(
-                    this.store.t('alert_error_title', 'Error'),
-                    this.providerStatus
-                );
+                await this.store.showAlert(this.store.t('alert_error_title', 'Error'), this.providerStatus);
                 return false;
             }
-
             this.store.settings.plugin_openrouter_provider = this.provider;
             this.store.settings.plugin_openrouter_rpm = Number(result.rpm) || Number(this.rpm) || 60;
             this.store.settings.plugin_openrouter_custom_base_url = result.base_url || this.customBaseUrl;
@@ -408,7 +395,6 @@ export default {
             }
             this.step = 'dashboard';
         },
-        
         async startGeneration() {
             if (!this.generatorPrompt.trim()) { 
                 await this.store.showAlert(
