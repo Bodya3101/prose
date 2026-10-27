@@ -227,7 +227,7 @@ def plugin_openrouter_get_models(provider=None):
         return {"success": False, "error": "Не удалось получить список моделей провайдера."}
 
 
-def plugin_openrouter_generate_batch(generator_prompt: str, empty_fields: list, hardcoded_context: dict, batch_size: int, model_name: str, provider: str = "openrouter") -> dict:
+def plugin_openrouter_generate_batch(generator_prompt: str, empty_fields: list, hardcoded_context: dict, batch_size: int, model_name: str, provider: str = "openrouter", options: dict = None) -> dict:
     try:
         base_url, api_key = _provider_config(provider, require_key=True)
         rpm = _validate_rpm(_get_setting("plugin_openrouter_rpm", DEFAULT_RPM))
@@ -241,6 +241,24 @@ def plugin_openrouter_generate_batch(generator_prompt: str, empty_fields: list, 
             return {"success": False, "error": "Некорректный список полей датасета."}
         if not isinstance(hardcoded_context, dict):
             return {"success": False, "error": "Некорректный контекст датасета."}
+        if options is None:
+            options = {}
+        if not isinstance(options, dict):
+            return {"success": False, "error": "Некорректные параметры генерации."}
+
+        try:
+            min_assistant_words = int(options.get("min_assistant_words", 0))
+            max_output_tokens = int(options.get("max_output_tokens", 8192))
+        except (TypeError, ValueError):
+            return {"success": False, "error": "Некорректные ограничения длины ответа."}
+        if not 0 <= min_assistant_words <= 2000:
+            return {"success": False, "error": "Минимум слов должен быть от 0 до 2000."}
+        if not 256 <= max_output_tokens <= 32768:
+            return {"success": False, "error": "Лимит выходных токенов должен быть от 256 до 32768."}
+        diversity_enabled = options.get("diversity_enabled", True) is True
+        topic_plan = options.get("topic_plan", "")
+        if not isinstance(topic_plan, str) or len(topic_plan) > 4000:
+            return {"success": False, "error": "План тем не должен превышать 4000 символов."}
 
         system_instruction = f"You are an AI dataset generator. Task:\n{generator_prompt}\n\n"
         if hardcoded_context:
@@ -250,11 +268,24 @@ def plugin_openrouter_generate_batch(generator_prompt: str, empty_fields: list, 
                     system_instruction += f"<{key}>{value}</{key}>\n"
         system_instruction += (
             f"\nCRITICAL INSTRUCTIONS:\n"
-            f"1. You must return a JSON array containing EXACTLY {batch_size} objects.\n"
-            f"2. DIVERSITY: All {batch_size} objects MUST be completely UNIQUE and explore DIFFERENT aspects, questions, or scenarios.\n"
+            f"1. Return a JSON array containing EXACTLY {batch_size} objects.\n"
+            f"2. Give every generated field substantive, specific content; never shorten entries merely to fit more examples.\n"
             f"3. FORMAT: Each object MUST contain EXACTLY these keys: {json.dumps(empty_fields)}. Do NOT include any other keys!\n"
             f"4. OUTPUT: Return only the JSON array, without markdown code fences."
         )
+        if diversity_enabled:
+            system_instruction += (
+                f"\nDIVERSITY: Create distinct entries that cover different aspects, scenarios, reasoning styles, "
+                f"and formulations. Avoid repeated templates and near-duplicate questions."
+            )
+        if topic_plan.strip():
+            system_instruction += f"\nTOPIC DISTRIBUTION / COVERAGE PLAN:\n{topic_plan.strip()}\nFollow this plan across the batch as evenly as practical."
+        if min_assistant_words > 0 and "assistant" in empty_fields:
+            system_instruction += (
+                f"\nANSWER DEPTH: Each generated assistant answer must contain at least "
+                f"{min_assistant_words} words. Explain the reasoning and relevant details; "
+                f"do not use terse summaries or one-sentence placeholders."
+            )
 
         _rate_limit(rpm, f"{provider}:{base_url.rstrip('/')}")
         response = requests.post(
@@ -264,6 +295,7 @@ def plugin_openrouter_generate_batch(generator_prompt: str, empty_fields: list, 
                 "model": model_name.strip(),
                 "messages": [{"role": "system", "content": system_instruction}],
                 "temperature": 0.8,
+                "max_tokens": max_output_tokens,
             },
             timeout=(10, 120),
             allow_redirects=False,
