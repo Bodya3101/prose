@@ -193,11 +193,20 @@ export default {
                 if (state.adaptiveSpeed && /429|rate.?limit|too many requests/i.test(errorText)) {
                     state.currentConcurrency = Math.max(1, Math.floor(state.currentConcurrency / 2));
                     state.successStreak = 0;
+                } else if (state.adaptiveSpeed && result && !result.success &&
+                    /json|token|context|truncat|обрез|too long|length/i.test(errorText)) {
+                    state.currentBatchSize = Math.max(1, Math.min(state.currentBatchSize, Math.floor(count / 2) || 1));
+                    state.batchSuccessStreak = 0;
                 } else if (state.adaptiveSpeed && result && result.success) {
                     state.successStreak++;
                     if (state.successStreak >= 3 && state.currentConcurrency < state.maxConcurrency) {
                         state.currentConcurrency++;
                         state.successStreak = 0;
+                    }
+                    state.batchSuccessStreak++;
+                    if (state.batchSuccessStreak >= 3 && state.currentBatchSize < state.maxBatchSize) {
+                        state.currentBatchSize = Math.min(state.maxBatchSize, state.currentBatchSize + 1);
+                        state.batchSuccessStreak = 0;
                     }
                 }
                 return result;
@@ -283,7 +292,7 @@ export default {
             let retries = 0;
             const retryLimit = state.autoRetry ? state.maxRetries : 0;
             while (savedCount < wantedCount && !this.cancelRequested) {
-                const requestCount = wantedCount - savedCount;
+                const requestCount = Math.min(wantedCount - savedCount, state.currentBatchSize);
                 this.statusMessage = this.store.t('or_progress_request', 'Generating batch') +
                     ' ' + (state.completed + 1) + '–' + Math.min(state.targetTotal, state.completed + requestCount) +
                     ' / ' + state.targetTotal + ' (' + state.activeRequests + '/' + state.currentConcurrency + ')';
@@ -505,6 +514,9 @@ export default {
                 activeRequests: 0,
                 currentConcurrency: maxConcurrency,
                 maxConcurrency,
+                currentBatchSize: batchSize,
+                maxBatchSize: batchSize,
+                batchSuccessStreak: 0,
                 successStreak: 0,
                 adaptiveSpeed: this.adaptiveSpeed,
                 autoRetry: this.autoRetry,

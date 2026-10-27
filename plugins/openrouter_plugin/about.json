@@ -1,7 +1,7 @@
 {
     "id": "openrouter_plugin",
     "name": "OpenRouter Generator",
-    "version": "1.1",
-    "description": "Генерация датасетов через OpenRouter или собственный OpenAI-совместимый API с ограничением RPM.",
+    "version": "1.2",
+    "description": "Генерация датасетов через OpenRouter или OpenAI-совместимые API: очередь, параллельные запросы, RPM, автоповторы, контроль качества и возобновление.",
     "has_frontend": true
 }
