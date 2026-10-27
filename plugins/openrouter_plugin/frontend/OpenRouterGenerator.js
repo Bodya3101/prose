@@ -605,7 +605,7 @@ export default {
             </div>
         </div>
 
-        <div v-else-if="step === 'dashboard'" class="create-modal" style="max-width: 600px; padding: 25px; gap: 15px;">
+        <div v-else-if="step === 'dashboard'" class="create-modal" style="max-width: 700px; max-height: 90vh; overflow-y: auto; padding: 25px; gap: 15px;">
             <div class="cm-header">{{ store.t('or_title', 'AI GENERATOR') }}<div class="cm-red-dot" @click="close" data-tooltip="Close"></div></div>
 
             <div style="display: flex; flex-direction: column; gap: 5px; width: 100%; text-align: left;">
@@ -666,8 +666,97 @@ export default {
                 </div>
 
                 <div style="display: flex; flex-direction: column; gap: 5px; width: 120px;">
-                    <span style="font-size: 12px; color: #A0A0A0;">{{ store.t('or_count_label', 'Count:') }}</span>
+                    <span style="font-size: 12px; color: #A0A0A0;">{{ queueEnabled ? store.t('or_batch_size_label', 'Batch size:') : store.t('or_count_label', 'Count:') }}</span>
                     <input type="number" v-model.number="batchSize" min="1" max="100" class="cm-hex-input-box" style="width: 100%; padding: 8px; font-size: 16px; text-align: center;">
+                </div>
+            </div>
+
+            <div class="or-modes-panel">
+                <div class="or-modes-heading">{{ store.t('or_modes_title', 'GENERATION MODES') }}</div>
+                <div class="or-modes-grid">
+                    <label class="or-mode-toggle">
+                        <input type="checkbox" v-model="queueEnabled">
+                        <span>{{ store.t('or_mode_queue', 'Queue and generate until target count') }}</span>
+                    </label>
+                    <label class="or-mode-toggle">
+                        <input type="checkbox" v-model="parallelEnabled" :disabled="!queueEnabled">
+                        <span>{{ store.t('or_mode_parallel', 'Parallel requests') }}</span>
+                    </label>
+                    <label class="or-mode-toggle">
+                        <input type="checkbox" v-model="autoRetry">
+                        <span>{{ store.t('or_mode_retry', 'Retry temporary failures and replace invalid examples') }}</span>
+                    </label>
+                    <label class="or-mode-toggle">
+                        <input type="checkbox" v-model="autoSaveResume" :disabled="!queueEnabled">
+                        <span>{{ store.t('or_mode_resume', 'Autosave progress and resume after restart') }}</span>
+                    </label>
+                    <label class="or-mode-toggle">
+                        <input type="checkbox" v-model="qualityCheckEnabled">
+                        <span>{{ store.t('or_mode_quality', 'Check required fields and answer length') }}</span>
+                    </label>
+                    <label class="or-mode-toggle">
+                        <input type="checkbox" v-model="duplicateCheckEnabled">
+                        <span>{{ store.t('or_mode_duplicates', 'Skip duplicate and near-duplicate prompts') }}</span>
+                    </label>
+                    <label class="or-mode-toggle">
+                        <input type="checkbox" v-model="diversityEnabled">
+                        <span>{{ store.t('or_mode_diversity', 'Request more diverse examples') }}</span>
+                    </label>
+                    <label class="or-mode-toggle">
+                        <input type="checkbox" v-model="adaptiveSpeed" :disabled="!parallelEnabled || !queueEnabled">
+                        <span>{{ store.t('or_mode_adaptive', 'Adapt concurrency to rate limits') }}</span>
+                    </label>
+                </div>
+
+                <div v-if="queueEnabled" class="or-mode-fields">
+                    <label class="or-mode-field">
+                        <span>{{ store.t('or_target_count', 'Target new records:') }}</span>
+                        <input type="number" v-model.number="targetCount" min="1" max="10000" step="1" class="cm-hex-input-box">
+                    </label>
+                    <label v-if="parallelEnabled" class="or-mode-field">
+                        <span>{{ store.t('or_max_concurrency', 'Parallel requests:') }}</span>
+                        <input type="number" v-model.number="maxConcurrency" min="1" max="10" step="1" class="cm-hex-input-box">
+                    </label>
+                    <label v-if="autoRetry" class="or-mode-field">
+                        <span>{{ store.t('or_max_retries', 'Retries per batch:') }}</span>
+                        <input type="number" v-model.number="maxRetries" min="0" max="10" step="1" class="cm-hex-input-box">
+                    </label>
+                </div>
+                <div v-if="qualityCheckEnabled" class="or-mode-fields">
+                    <label class="or-mode-field">
+                        <span>{{ store.t('or_min_words', 'Minimum words in generated assistant answer (0 = off):') }}</span>
+                        <input type="number" v-model.number="minAssistantWords" min="0" max="2000" step="10" class="cm-hex-input-box">
+                    </label>
+                    <label class="or-mode-field">
+                        <span>{{ store.t('or_output_tokens', 'Maximum output tokens per batch:') }}</span>
+                        <input type="number" v-model.number="maxOutputTokens" min="256" max="32768" step="256" class="cm-hex-input-box">
+                    </label>
+                </div>
+                <label v-if="diversityEnabled" class="or-mode-field or-mode-topic">
+                    <span>{{ store.t('or_topic_plan', 'Topic distribution / coverage plan (optional):') }}</span>
+                    <textarea v-model="topicPlan" rows="2" maxlength="4000" class="message-textarea" :placeholder="store.t('or_topic_plan_ph', 'Example: 25% basics, 35% debugging, 25% coding tasks, 15% architecture')"></textarea>
+                </label>
+                <div class="or-mode-note">{{ store.t('or_resume_privacy', 'Resume saves prompts and generation settings locally in Prose settings. API keys remain in the OS Keyring.') }}</div>
+                <button class="or-btn-secondary" @click="saveGenerationModes">{{ store.t('or_save_modes', 'Save generation modes') }}</button>
+            </div>
+
+            <div v-if="pendingCheckpoint && !isGenerating" class="or-resume-panel">
+                <div class="or-modes-heading">{{ store.t('or_resume_available', 'UNFINISHED GENERATION FOUND') }}</div>
+                <div>{{ store.t('or_resume_progress', 'Saved progress:') }} {{ pendingCheckpoint.completed || 0 }} / {{ pendingCheckpoint.target_count || 0 }}</div>
+                <button class="btn-primary" @click="resumePreviousGeneration">{{ store.t('or_resume_button', 'Resume generation') }}</button>
+            </div>
+
+            <div v-if="isGenerating" class="or-live-progress">
+                <div class="or-progress-text">
+                    <span>{{ statusMessage }}</span>
+                    <span>{{ progressCompleted }} / {{ progressTotal }}</span>
+                </div>
+                <div class="or-progress-track">
+                    <div class="or-progress-bar-dynamic" :style="{ width: progressTotal ? Math.min(100, progressCompleted / progressTotal * 100) + '%' : '0%' }"></div>
+                </div>
+                <div class="or-progress-meta">
+                    {{ store.t('or_rejected_count', 'Rejected low-quality/duplicate examples:') }} {{ rejectedCount }}
+                    · {{ store.t('or_failed_batches', 'Failed batches:') }} {{ failedChunks }}
                 </div>
             </div>
 
