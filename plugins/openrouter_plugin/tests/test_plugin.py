@@ -76,8 +76,8 @@ class OpenRouterPluginValidationTests(unittest.TestCase):
             with patch.object(plugin.requests, "post", return_value=response) as post:
                 result = plugin.plugin_openrouter_generate_batch(
                     "Generate a greeting", ["user", "assistant"], {}, 1, "org/model-a", "custom", {
-                        min_assistant_words: 60, max_output_tokens: 4096,
-                        diversity_enabled: true, topic_plan: "balanced"
+                        "min_assistant_words": 60, "max_output_tokens": 4096,
+                        "diversity_enabled": True, "topic_plan": "balanced"
                     }
                 )
         self.assertTrue(result["success"])
