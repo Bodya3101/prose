@@ -1,3 +1,4 @@
+import base64
 import sys
 import unittest
 from pathlib import Path
@@ -76,6 +77,51 @@ class OpenRouterPluginValidationTests(unittest.TestCase):
         self.assertEqual(result["models"], ["org/model-b"])
         self.assertNotIn("Authorization", get.call_args.kwargs["headers"])
 
+    def test_custom_key_is_persisted_in_system_keyring(self):
+        api = Mock()
+        api.get_settings.return_value = {"plugin_openrouter_custom_base_url": "https://api.example.com/v1"}
+        api.update_setting.return_value = True
+        plugin.initialize_plugin(api)
+        with patch.object(plugin.keyring, "set_password") as set_password:
+            with patch.object(plugin.keyring, "get_password", return_value="persisted-secret"):
+                result = plugin.plugin_openrouter_save_config(
+                    "custom", "https://api.example.com/v1", "persisted-secret", 60, False
+                )
+        self.assertTrue(result["success"])
+        self.assertTrue(result["has_custom_key"])
+        set_password.assert_called_once_with(plugin.APP_NAME, "openrouter_custom_key", "persisted-secret")
+
+    def test_config_status_never_returns_the_secret(self):
+        api = Mock()
+        api.get_settings.return_value = {
+            "plugin_openrouter_provider": "custom",
+            "plugin_openrouter_custom_base_url": "https://api.example.com/v1",
+            "plugin_openrouter_rpm": 30,
+        }
+        plugin.initialize_plugin(api)
+        with patch.object(plugin.keyring, "get_password", return_value="do-not-return-this"):
+            result = plugin.plugin_openrouter_get_config()
+        self.assertTrue(result["success"])
+        self.assertTrue(result["has_custom_key"])
+        self.assertNotIn("do-not-return-this", str(result))
+
+    def test_extracts_text_attachment(self):
+        content = "Chapter One\nA sufficiently useful source document."
+        encoded = base64.b64encode(content.encode("utf-8")).decode("ascii")
+        result = plugin.plugin_openrouter_extract_documents([{"name": "source.txt", "data_base64": encoded}])
+        self.assertTrue(result["success"])
+        self.assertEqual(result["documents"][0]["text"], content)
+
+    def test_attachment_count_and_extension_are_validated(self):
+        too_many = [{"name": "a.txt", "data_base64": base64.b64encode(b"x").decode("ascii")}] * 6
+        result = plugin.plugin_openrouter_extract_documents(too_many)
+        self.assertFalse(result["success"])
+        self.assertIn("не более 5", result["error"])
+        unknown = plugin.plugin_openrouter_extract_documents([{
+            "name": "program.exe", "data_base64": base64.b64encode(b"x").decode("ascii")
+        }])
+        self.assertFalse(unknown["success"])
+
     def test_custom_generation_posts_to_chat_completions(self):
         api = Mock()
         api.get_settings.return_value = {
@@ -90,7 +136,8 @@ class OpenRouterPluginValidationTests(unittest.TestCase):
                 result = plugin.plugin_openrouter_generate_batch(
                     "Generate a greeting", ["user", "assistant"], {}, 1, "org/model-a", "custom", {
                         "min_assistant_words": 60, "max_output_tokens": 4096,
-                        "diversity_enabled": True, "topic_plan": "balanced"
+                        "diversity_enabled": True, "topic_plan": "balanced",
+                        "source_documents": [{"name": "roman-history.txt", "text": "Julius Caesar crossed the Rubicon."}]
                     }
                 )
         self.assertTrue(result["success"])
@@ -101,6 +148,8 @@ class OpenRouterPluginValidationTests(unittest.TestCase):
         self.assertEqual(kwargs["json"]["max_tokens"], 4096)
         self.assertIn("at least 60 words", kwargs["json"]["messages"][0]["content"])
         self.assertIn("balanced", kwargs["json"]["messages"][0]["content"])
+        self.assertIn("roman-history.txt", kwargs["json"]["messages"][0]["content"])
+        self.assertIn("crossed the Rubicon", kwargs["json"]["messages"][0]["content"])
         self.assertFalse(kwargs["allow_redirects"])
 
 

@@ -17,8 +17,12 @@ export default {
             customBaseUrl: '',
             customApiKey: '',
             clearCustomKey: false,
+            hasCustomApiKey: false,
             rpm: 60,
             providerStatus: '',
+            attachedDocuments: [],
+            attachmentStatus: '',
+            isReadingAttachments: false,
 
             queueEnabled: true,
             parallelEnabled: true,
@@ -74,7 +78,16 @@ export default {
             this.startTimer();
         }
 
-        if (window.pywebview) await this.loadModels();
+        if (window.pywebview) {
+            if (window.pywebview.api.plugin_openrouter_get_config) {
+                const config = await window.pywebview.api.plugin_openrouter_get_config();
+                if (config && config.success) {
+                    this.hasCustomApiKey = config.has_custom_key === true;
+                    if (!this.customBaseUrl) this.customBaseUrl = config.base_url || '';
+                }
+            }
+            await this.loadModels();
+        }
     },
     unmounted() {
         if (this.timerInterval) clearInterval(this.timerInterval);
@@ -101,8 +114,73 @@ export default {
                 diversity_enabled: this.diversityEnabled,
                 min_assistant_words: Number(this.minAssistantWords) || 0,
                 max_output_tokens: Number(this.maxOutputTokens) || 8192,
-                topic_plan: this.topicPlan || ''
+                topic_plan: this.topicPlan || '',
+                source_documents: this.attachedDocuments.map(doc => ({
+                    name: String(doc.name || 'document'),
+                    text: String(doc.text || '')
+                }))
             };
+        },
+        async handleAttachmentSelection(event) {
+            const input = event && event.target;
+            const selected = Array.from((input && input.files) || []);
+            if (input) input.value = '';
+            if (!selected.length) return;
+            const remaining = 5 - this.attachedDocuments.length;
+            if (remaining <= 0) {
+                this.attachmentStatus = this.store.t('or_attachment_limit', 'You can attach up to 5 files.');
+                return;
+            }
+            const files = selected.slice(0, remaining);
+            const payloads = [];
+            const errors = [];
+            if (selected.length > remaining) errors.push(this.store.t('or_attachment_limit', 'You can attach up to 5 files.'));
+            this.isReadingAttachments = true;
+            this.attachmentStatus = this.store.t('or_attachment_reading', 'Reading documents locally...');
+            try {
+                for (const file of files) {
+                    if (file.size > 8 * 1024 * 1024) {
+                        errors.push(file.name + ': ' + this.store.t('or_attachment_too_large', 'Maximum size per file is 8 MB.'));
+                        continue;
+                    }
+                    try {
+                        const encoded = await new Promise((resolve, reject) => {
+                            const reader = new FileReader();
+                            reader.onload = () => resolve(String(reader.result || '').split(',').pop() || '');
+                            reader.onerror = () => reject(new Error('File could not be read.'));
+                            reader.readAsDataURL(file);
+                        });
+                        payloads.push({ name: file.name, data_base64: encoded });
+                    } catch (error) {
+                        errors.push(file.name + ': ' + String(error.message || error));
+                    }
+                }
+                if (!payloads.length) {
+                    this.attachmentStatus = errors.join(' · ') || this.store.t('or_attachment_none_read', 'No readable files.');
+                    return;
+                }
+                const result = await window.pywebview.api.plugin_openrouter_extract_documents(payloads);
+                if (result && Array.isArray(result.documents)) {
+                    const incoming = result.documents.filter(doc => doc && typeof doc.text === 'string' && doc.text.trim());
+                    this.attachedDocuments = this.attachedDocuments.concat(incoming).slice(0, 5);
+                    for (const message of (result.errors || [])) errors.push(message);
+                } else if (result && result.error) {
+                    errors.push(result.error);
+                }
+                const loaded = result && Array.isArray(result.documents) ? result.documents.length : 0;
+                const loadedText = loaded
+                    ? this.store.t('or_attachment_loaded', 'Loaded documents:') + ' ' + loaded + '.'
+                    : this.store.t('or_attachment_none_read', 'No readable files.');
+                this.attachmentStatus = [loadedText].concat(errors).filter(Boolean).join(' ');
+            } catch (error) {
+                this.attachmentStatus = this.store.t('or_attachment_error', 'Could not read attachments:') + ' ' + String(error.message || error);
+            } finally {
+                this.isReadingAttachments = false;
+            }
+        },
+        removeAttachment(index) {
+            this.attachedDocuments.splice(index, 1);
+            this.attachmentStatus = this.store.t('or_attachment_removed', 'Attachment removed.');
         },
         async saveGenerationModes() {
             if (!window.pywebview) return;
@@ -156,6 +234,15 @@ export default {
             this.batchSize = checkpoint.batch_size || this.batchSize;
             this.targetCount = checkpoint.target_count || this.targetCount;
             this.hardcodeFields = Object.assign({}, this.hardcodeFields, checkpoint.hardcode_fields || {});
+            const savedDocuments = checkpoint.generation_options && Array.isArray(checkpoint.generation_options.source_documents)
+                ? checkpoint.generation_options.source_documents : [];
+            this.attachedDocuments = savedDocuments
+                .filter(doc => doc && typeof doc.text === 'string')
+                .slice(0, 5)
+                .map(doc => ({ name: String(doc.name || 'document'), text: doc.text, characters: doc.text.length, truncated: false }));
+            if (this.attachedDocuments.length) {
+                this.attachmentStatus = this.store.t('or_attachment_restored', 'Source documents restored from the checkpoint.');
+            }
             await this.startGeneration(checkpoint);
         },
         async persistCheckpoint(state, status) {
@@ -393,6 +480,7 @@ export default {
             this.store.settings.plugin_openrouter_provider = this.provider;
             this.store.settings.plugin_openrouter_rpm = Number(result.rpm) || Number(this.rpm) || 60;
             this.store.settings.plugin_openrouter_custom_base_url = result.base_url || this.customBaseUrl;
+            this.hasCustomApiKey = result.has_custom_key === true;
             this.customApiKey = '';
             this.clearCustomKey = false;
             this.providerStatus = this.store.t('or_settings_saved', 'Provider settings saved.');
@@ -434,8 +522,8 @@ export default {
             if (!await this.persistProviderSettings(false)) return;
 
             const identity = this.projectDatasetIdentity();
-            const emptyFields = resumeCheckpoint ? (resumeCheckpoint.empty_fields || []) : [];
-            const hardcodedContext = resumeCheckpoint ? (resumeCheckpoint.hardcoded_context || {}) : {};
+            const emptyFields = resumeCheckpoint ? (resumeCheckpoint.empty_fields || []).slice() : [];
+            const hardcodedContext = resumeCheckpoint ? Object.assign({}, resumeCheckpoint.hardcoded_context || {}) : {};
             if (!resumeCheckpoint) {
                 if (!this.hardcodeFields.system.trim() && !this.store.activeProject.use_single_prompt) {
                     emptyFields.push('system');
@@ -452,6 +540,20 @@ export default {
                 }
                 if (!this.hardcodeFields.assistant.trim()) emptyFields.push('assistant');
                 else hardcodedContext.assistant = this.hardcodeFields.assistant;
+            }
+            const activeFields = ['user', 'assistant'];
+            if (this.store.activeProject.use_thinking) activeFields.splice(1, 0, 'thought');
+            if (!this.store.activeProject.use_single_prompt) activeFields.unshift('system');
+            const normalizedEmptyFields = Array.from(new Set(emptyFields.filter(field => activeFields.includes(field))));
+            emptyFields.splice(0, emptyFields.length, ...normalizedEmptyFields);
+            // Old checkpoints could persist an empty field list. Rebuild it from current fields instead of
+            // incorrectly blocking generation with "all fields are fixed".
+            if (!emptyFields.length) {
+                const savedFields = Object.assign({}, this.hardcodeFields, (resumeCheckpoint && resumeCheckpoint.hardcode_fields) || {});
+                for (const field of activeFields) {
+                    const fixedValue = String(savedFields[field] || hardcodedContext[field] || '').trim();
+                    if (!fixedValue) emptyFields.push(field);
+                }
             }
             if (!emptyFields.length) {
                 await this.store.showAlert(this.store.t('alert_warning_title', 'Warning'), this.store.t('or_err_all_hardcoded', 'All fields are fixed! AI has nothing to generate.'));
@@ -638,6 +740,31 @@ export default {
                 <textarea v-model="generatorPrompt" class="message-textarea" style="min-height: 50px; border-color: #4E6DB2;" :placeholder="store.t('or_prompt_placeholder', 'Describe what to generate...')"></textarea>
             </div>
 
+            <div class="or-attachments-panel">
+                <div class="or-modes-heading">{{ store.t('or_attachments_title', 'SOURCE DOCUMENTS') }} · {{ attachedDocuments.length }}/5</div>
+                <div class="or-attachments-actions">
+                    <label class="or-attachment-picker" :class="{ 'is-disabled': isReadingAttachments || isGenerating || attachedDocuments.length >= 5 }">
+                        <input type="file" multiple
+                               accept=".txt,.md,.markdown,.json,.jsonl,.ndjson,.csv,.tsv,.yaml,.yml,.xml,.html,.htm,.py,.js,.mjs,.cjs,.ts,.tsx,.jsx,.css,.scss,.sql,.log,.toml,.ini,.sh,.bat,.ps1,.java,.c,.h,.cpp,.hpp,.cs,.go,.rs,.php,.rb,.lua,.r,.ipynb,.diff,.patch,.pdf,.docx,.pptx,.xlsx"
+                               @change="handleAttachmentSelection"
+                               :disabled="isReadingAttachments || isGenerating || attachedDocuments.length >= 5">
+                        {{ isReadingAttachments ? store.t('or_attachment_reading', 'Reading documents locally...') : store.t('or_attach_files', 'Attach files') }}
+                    </label>
+                    <span class="or-attachment-hint">{{ store.t('or_attachment_hint', 'Up to 5 files · 8 MB each · text is extracted locally') }}</span>
+                </div>
+                <div v-if="attachedDocuments.length" class="or-attachment-list">
+                    <div v-for="(doc, index) in attachedDocuments" :key="doc.name + '-' + index" class="or-attachment-item">
+                        <div class="or-attachment-name">
+                            <strong>{{ doc.name }}</strong>
+                            <span>{{ doc.characters || doc.text.length }} {{ store.t('or_attachment_characters', 'characters') }}<span v-if="doc.truncated"> · {{ store.t('or_attachment_truncated', 'truncated') }}</span></span>
+                        </div>
+                        <button type="button" class="or-attachment-remove" @click.stop="removeAttachment(index)" :disabled="isGenerating" :aria-label="store.t('or_remove_attachment', 'Remove attachment')">×</button>
+                    </div>
+                </div>
+                <div v-if="attachmentStatus" class="or-attachment-status">{{ attachmentStatus }}</div>
+                <div class="or-mode-note">{{ store.t('or_attachment_privacy', 'File binaries stay local; extracted text is sent to the selected API provider with each generation request.') }}</div>
+            </div>
+
             <div style="display: flex; gap: 15px; width: 100%; align-items: flex-end;">
                 <div style="display: flex; flex-direction: column; gap: 5px; flex: 1;">
                     <span style="font-size: 12px; color: #A0A0A0;">{{ store.t('or_provider_label', 'Provider:') }}</span>
@@ -661,6 +788,9 @@ export default {
                     {{ store.t('or_custom_api_key_label', 'API key (optional for local servers):') }}
                     <input type="password" v-model="customApiKey" @input="clearCustomKey = false" autocomplete="off" class="message-textarea" style="min-height: auto; padding: 8px; font-size: 12px;" :placeholder="store.t('or_custom_api_key_ph', 'Leave blank to keep the saved key')">
                 </label>
+                <div class="or-key-status" :class="{ 'is-saved': hasCustomApiKey }">
+                    {{ hasCustomApiKey ? store.t('or_custom_key_stored', 'Custom API key is saved in the OS credential store.') : store.t('or_custom_key_missing', 'No custom API key saved. Enter one above; local APIs may not require it.') }}
+                </div>
                 <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #A0A0A0;">
                     <input type="checkbox" v-model="clearCustomKey">
                     {{ store.t('or_clear_custom_key', 'Remove saved custom API key') }}

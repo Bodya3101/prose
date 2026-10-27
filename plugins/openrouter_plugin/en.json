@@ -1,0 +1,19 @@
+{
+  "or_attachments_title": "SOURCE DOCUMENTS",
+  "or_attach_files": "Attach files",
+  "or_attachment_hint": "Up to 5 files · 8 MB each · text is extracted locally",
+  "or_attachment_characters": "characters",
+  "or_attachment_truncated": "truncated",
+  "or_remove_attachment": "Remove attachment",
+  "or_attachment_reading": "Reading documents locally…",
+  "or_attachment_loaded": "Loaded documents:",
+  "or_attachment_none_read": "No readable files.",
+  "or_attachment_error": "Could not read attachments:",
+  "or_attachment_limit": "You can attach up to 5 files.",
+  "or_attachment_too_large": "Maximum size per file is 8 MB.",
+  "or_attachment_removed": "Attachment removed.",
+  "or_attachment_restored": "Source documents restored from the checkpoint.",
+  "or_attachment_privacy": "File binaries stay on your computer; extracted text is sent to the selected API provider with each generation request.",
+  "or_custom_key_stored": "Custom API key is saved in the OS credential store.",
+  "or_custom_key_missing": "No custom API key saved. Enter one above; local APIs may not require it."
+}

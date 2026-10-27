@@ -215,3 +215,110 @@
         grid-template-columns: minmax(0, 1fr);
     }
 }
+
+
+/* Source-document attachments and secure custom key status */
+.or-attachments-panel {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 13px;
+    border: 1px solid var(--border-main);
+    border-radius: 10px;
+    background: #171717;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.or-attachments-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+.or-attachment-picker {
+    display: inline-flex;
+    position: relative;
+    align-items: center;
+    border: 1px solid var(--border-main);
+    border-radius: 7px;
+    padding: 9px 12px;
+    color: var(--text-main);
+    background: #252525;
+    font-size: 12px;
+    cursor: pointer;
+}
+.or-attachment-picker input[type="file"] {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    overflow: hidden;
+}
+.or-attachment-picker:focus-within {
+    outline: 2px solid #4E6DB2;
+    outline-offset: 2px;
+}
+.or-attachment-picker.is-disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+.or-attachment-hint {
+    color: #888;
+    font-size: 11px;
+    line-height: 1.5;
+}
+.or-attachment-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.or-attachment-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border: 1px solid var(--border-main);
+    border-radius: 7px;
+    background: #202020;
+}
+.or-attachment-name {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    overflow-wrap: anywhere;
+    color: var(--text-main);
+    font-size: 12px;
+}
+.or-attachment-name span {
+    color: #888;
+    font-size: 10px;
+}
+.or-attachment-remove {
+    flex: 0 0 auto;
+    border: 0;
+    border-radius: 5px;
+    background: transparent;
+    color: #D88C8C;
+    font-size: 19px;
+    cursor: pointer;
+}
+.or-attachment-remove:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+.or-attachment-status {
+    color: #A0A0A0;
+    font-size: 11px;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+.or-key-status {
+    color: #D7B47A;
+    font-size: 11px;
+    line-height: 1.4;
+}
+.or-key-status.is-saved {
+    color: #74B98C;
+}
