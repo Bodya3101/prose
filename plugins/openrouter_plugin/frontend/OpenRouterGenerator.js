@@ -18,10 +18,32 @@ export default {
             customApiKey: '',
             clearCustomKey: false,
             rpm: 60,
-            providerStatus: '', 
-            
-            genMode: 'single', 
-            batchSize: 5,
+            providerStatus: '',
+
+            queueEnabled: true,
+            parallelEnabled: true,
+            maxConcurrency: 3,
+            targetCount: 1000,
+            autoRetry: true,
+            maxRetries: 3,
+            autoSaveResume: true,
+            qualityCheckEnabled: true,
+            duplicateCheckEnabled: true,
+            diversityEnabled: true,
+            topicPlan: '',
+            adaptiveSpeed: true,
+            minAssistantWords: 80,
+            maxOutputTokens: 8192,
+            pendingCheckpoint: null,
+            progressCompleted: 0,
+            progressTotal: 1000,
+            rejectedCount: 0,
+            failedChunks: 0,
+            cancelRequested: false,
+            saveQueue: Promise.resolve(),
+
+            genMode: 'single',
+            batchSize: 10,
             generatorPrompt: "Сгенерируй датасет вопросов по истории Рима и глубоких ответов на них.",
             
             hardcodeFields: {
@@ -43,6 +65,8 @@ export default {
         this.provider = this.store.settings.plugin_openrouter_provider || 'openrouter';
         this.customBaseUrl = this.store.settings.plugin_openrouter_custom_base_url || '';
         this.rpm = Number(this.store.settings.plugin_openrouter_rpm) || 60;
+        this.loadSavedGenerationModes();
+        this.loadPendingCheckpoint();
 
         if (this.store.settings.skip_openrouter_disclaimer) {
             this.step = 'dashboard';
@@ -56,8 +80,262 @@ export default {
         if (this.timerInterval) clearInterval(this.timerInterval);
     },
     methods: {
-        close() { this.$emit('close'); },
-        async loadModels() {
+        close() {
+            if (this.isGenerating) {
+                this.cancelRequested = true;
+                this.statusMessage = this.store.t('or_cancel_wait', 'Stopping after current requests finish...');
+                return;
+            }
+            this.$emit('close');
+        },
+        modeKeys() {
+            return [
+                'queueEnabled', 'parallelEnabled', 'maxConcurrency', 'targetCount', 'batchSize',
+                'autoRetry', 'maxRetries', 'autoSaveResume', 'qualityCheckEnabled',
+                'duplicateCheckEnabled', 'diversityEnabled', 'topicPlan', 'adaptiveSpeed',
+                'minAssistantWords', 'maxOutputTokens'
+            ];
+        },
+        buildGenerationOptions() {
+            return {
+                diversity_enabled: this.diversityEnabled,
+                min_assistant_words: Number(this.minAssistantWords) || 0,
+                max_output_tokens: Number(this.maxOutputTokens) || 8192,
+                topic_plan: this.topicPlan || ''
+            };
+        },
+        async saveGenerationModes() {
+            if (!window.pywebview) return;
+            const saved = {};
+            for (const key of this.modeKeys()) saved[key] = this[key];
+            await window.pywebview.api.update_setting('plugin_openrouter_generation_options', saved);
+            this.store.settings.plugin_openrouter_generation_options = saved;
+            this.providerStatus = this.store.t('or_modes_saved', 'Generation modes saved.');
+        },
+        projectDatasetIdentity() {
+            const project = this.store.activeProject || {};
+            const files = project.dataset_files || [];
+            const datasetName = project.active_dataset || files[0] || project.dataset_file || '';
+            return {
+                projectId: String(project.id || ''),
+                projectName: String(project.name || ''),
+                datasetName: String(datasetName)
+            };
+        },
+        loadSavedGenerationModes() {
+            const saved = this.store.settings.plugin_openrouter_generation_options;
+            if (!saved || typeof saved !== 'object') return;
+            for (const key of this.modeKeys()) {
+                if (Object.prototype.hasOwnProperty.call(saved, key)) this[key] = saved[key];
+            }
+        },
+        loadPendingCheckpoint() {
+            const checkpoint = this.store.settings.plugin_openrouter_checkpoint;
+            if (!checkpoint || typeof checkpoint !== 'object' || checkpoint.status === 'completed') return;
+            const identity = this.projectDatasetIdentity();
+            if (checkpoint.project_id === identity.projectId &&
+                checkpoint.dataset_name === identity.datasetName &&
+                checkpoint.auto_save_resume === true) {
+                this.pendingCheckpoint = checkpoint;
+            }
+        },
+        async resumePreviousGeneration() {
+            const checkpoint = this.pendingCheckpoint;
+            if (!checkpoint) return;
+            this.pendingCheckpoint = null;
+            if (checkpoint.generation_modes && typeof checkpoint.generation_modes === 'object') {
+                for (const key of this.modeKeys()) {
+                    if (Object.prototype.hasOwnProperty.call(checkpoint.generation_modes, key)) this[key] = checkpoint.generation_modes[key];
+                }
+            }
+            this.provider = checkpoint.provider || this.provider;
+            this.customBaseUrl = checkpoint.custom_base_url || this.customBaseUrl;
+            this.rpm = checkpoint.rpm || this.rpm;
+            this.selectedModel = checkpoint.model || this.selectedModel;
+            this.generatorPrompt = checkpoint.generator_prompt || this.generatorPrompt;
+            this.batchSize = checkpoint.batch_size || this.batchSize;
+            this.targetCount = checkpoint.target_count || this.targetCount;
+            this.hardcodeFields = Object.assign({}, this.hardcodeFields, checkpoint.hardcode_fields || {});
+            await this.startGeneration(checkpoint);
+        },
+        async persistCheckpoint(state, status) {
+            if (!state.autoSaveResume || !state.queueEnabled || !window.pywebview) return;
+            const checkpoint = Object.assign({}, state.checkpoint, {
+                completed: state.completed,
+                status,
+                updated_at: new Date().toISOString(),
+                auto_save_resume: true
+            });
+            await window.pywebview.api.update_setting('plugin_openrouter_checkpoint', checkpoint);
+            this.store.settings.plugin_openrouter_checkpoint = checkpoint;
+            if (status === 'completed') this.pendingCheckpoint = null;
+        },
+        async acquireRequestSlot(state) {
+            while (!this.cancelRequested && state.activeRequests >= state.currentConcurrency) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            if (this.cancelRequested) throw new Error('cancelled');
+            state.activeRequests++;
+        },
+        async callGenerator(count, context, state) {
+            await this.acquireRequestSlot(state);
+            try {
+                const result = await window.pywebview.api.plugin_openrouter_generate_batch(
+                    context.generatorPrompt,
+                    context.emptyFields,
+                    context.hardcodedContext,
+                    count,
+                    context.model,
+                    context.provider,
+                    context.generationOptions
+                );
+                const errorText = result && result.error ? String(result.error) : '';
+                if (state.adaptiveSpeed && /429|rate.?limit|too many requests/i.test(errorText)) {
+                    state.currentConcurrency = Math.max(1, Math.floor(state.currentConcurrency / 2));
+                    state.successStreak = 0;
+                } else if (state.adaptiveSpeed && result && result.success) {
+                    state.successStreak++;
+                    if (state.successStreak >= 3 && state.currentConcurrency < state.maxConcurrency) {
+                        state.currentConcurrency++;
+                        state.successStreak = 0;
+                    }
+                }
+                return result;
+            } finally {
+                state.activeRequests--;
+            }
+        },
+        normalizedPrompt(value) {
+            return String(value || '').normalize('NFKC').toLowerCase()
+                .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+                .replace(/\s+/g, ' ').trim();
+        },
+        candidateIsValid(entry, context, state) {
+            if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return false;
+            const payload = {
+                system: context.hardcodedContext.system ? context.hardcodedContext.system : (entry.system || ''),
+                user: context.hardcodedContext.user ? context.hardcodedContext.user : (entry.user || ''),
+                assistant: context.hardcodedContext.assistant ? context.hardcodedContext.assistant : (entry.assistant || '')
+            };
+            if (context.useThinking) {
+                payload.thought = context.hardcodedContext.thought ? context.hardcodedContext.thought : (entry.thought || '');
+            }
+
+            if (state.qualityCheckEnabled) {
+                for (const field of context.emptyFields) {
+                    if (typeof entry[field] !== 'string' || !entry[field].trim()) return false;
+                }
+                if (context.emptyFields.includes('assistant') && state.minAssistantWords > 0) {
+                    const words = String(payload.assistant || '').trim().split(/\s+/).filter(Boolean).length;
+                    if (words < state.minAssistantWords) return false;
+                }
+            }
+
+            if (state.duplicateCheckEnabled) {
+                const normalized = this.normalizedPrompt(payload.user);
+                if (!normalized) return false;
+                if (state.seenPromptSet.has(normalized)) return false;
+                const tokens = normalized.split(' ').filter(word => word.length > 2);
+                if (tokens.length >= 7) {
+                    const tokenSet = new Set(tokens);
+                    for (const prior of state.seenPrompts.slice(-200)) {
+                        const priorTokens = prior.split(' ').filter(word => word.length > 2);
+                        if (priorTokens.length < 7) continue;
+                        const priorSet = new Set(priorTokens);
+                        let overlap = 0;
+                        for (const token of tokenSet) if (priorSet.has(token)) overlap++;
+                        const similarity = overlap / Math.max(1, tokenSet.size + priorSet.size - overlap);
+                        if (similarity >= 0.92) return false;
+                    }
+                }
+                state.seenPromptSet.add(normalized);
+                state.seenPrompts.push(normalized);
+            }
+            return payload;
+        },
+        async appendEntries(entries, state) {
+            const task = this.saveQueue.then(async () => {
+                for (const payload of entries) {
+                    if (this.cancelRequested) break;
+                    const indexToSave = this.$parent.totalEntries;
+                    const saved = await window.pywebview.api.save_dataset_entry(indexToSave, payload);
+                    if (saved && saved.success === false) throw new Error(saved.error || 'Could not save dataset entry.');
+                    this.$parent.totalEntries++;
+                    state.completed++;
+                    this.progressCompleted = state.completed;
+                    if (state.autoSaveResume && state.queueEnabled) await this.persistCheckpoint(state, 'running');
+                }
+            });
+            this.saveQueue = task.catch(() => {});
+            return task;
+        },
+        async generateChunk(wantedCount, context, state) {
+            let savedCount = 0;
+            let retries = 0;
+            const retryLimit = state.autoRetry ? state.maxRetries : 0;
+            while (savedCount < wantedCount && !this.cancelRequested) {
+                const requestCount = wantedCount - savedCount;
+                this.statusMessage = this.store.t('or_progress_request', 'Generating batch') +
+                    ' ' + (state.completed + 1) + '–' + Math.min(state.targetTotal, state.completed + requestCount) +
+                    ' / ' + state.targetTotal + ' (' + state.activeRequests + '/' + state.currentConcurrency + ')';
+                let result;
+                try {
+                    result = await this.callGenerator(requestCount, context, state);
+                } catch (error) {
+                    if (String(error.message) === 'cancelled') return savedCount;
+                    result = { success: false, error: String(error.message || error) };
+                }
+
+                if (!result || !result.success || !Array.isArray(result.data)) {
+                    state.lastError = result && result.error ? result.error : this.store.t('or_unknown_error', 'Provider returned an invalid response.');
+                    if (retries >= retryLimit) {
+                        state.failedChunks++;
+                        this.failedChunks = state.failedChunks;
+                        return savedCount;
+                    }
+                    const isRateLimit = /429|rate.?limit|too many requests/i.test(state.lastError);
+                    const delayMs = isRateLimit ? Math.min(30000, 2500 * (2 ** retries)) : Math.min(15000, 800 * (2 ** retries));
+                    retries++;
+                    this.statusMessage = this.store.t('or_retry_wait', 'Temporary error; retrying in') + ' ' + Math.ceil(delayMs / 1000) + 's: ' + state.lastError;
+                    await new Promise(resolve => setTimeout(resolve, delayMs));
+                    continue;
+                }
+
+                const accepted = [];
+                for (const entry of result.data) {
+                    const payload = this.candidateIsValid(entry, context, state);
+                    if (payload) accepted.push(payload);
+                    else state.rejectedCount++;
+                }
+                this.rejectedCount = state.rejectedCount;
+                if (accepted.length) {
+                    try {
+                        await this.appendEntries(accepted, state);
+                    } catch (error) {
+                        state.failedChunks++;
+                        state.lastError = String(error.message || error);
+                        this.failedChunks = state.failedChunks;
+                        return savedCount;
+                    }
+                    savedCount += accepted.length;
+                    retries = 0;
+                }
+
+                if (savedCount < wantedCount && !this.cancelRequested) {
+                    if (retries >= retryLimit) {
+                        state.failedChunks++;
+                        this.failedChunks = state.failedChunks;
+                        return savedCount;
+                    }
+                    retries++;
+                    this.statusMessage = this.store.t('or_retry_quality', 'Replacing short, empty or duplicate examples...') +
+                        ' (' + savedCount + '/' + wantedCount + ')';
+                    await new Promise(resolve => setTimeout(resolve, state.adaptiveSpeed ? 300 : 0));
+                }
+            }
+            return savedCount;
+        },
+        async startTimer() {
             if (!window.pywebview) return;
             if (this.provider === 'custom' && !this.customBaseUrl.trim()) {
                 this.modelsList = [];
